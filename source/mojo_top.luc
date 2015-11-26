@@ -1,0 +1,200 @@
+module mojo_top (
+    input clk,              // 50MHz clock
+    input rst_n,            // reset button (active low)
+    output led [8],         // 8 user controllable LEDs
+    input cclk,             // configuration clock, AVR ready when high
+    output spi_miso,        // AVR SPI MISO
+    input spi_ss,           // AVR SPI Slave Select
+    input spi_mosi,         // AVR SPI MOSI
+    input spi_sck,          // AVR SPI Clock
+    output spi_channel [4], // AVR general purpose pins (used by default to select ADC channel)
+    input avr_tx,           // AVR TX (FPGA RX)
+    output avr_rx,          // AVR RX (FPGA TX)
+    input avr_rx_busy,      // AVR RX buffer full
+    output io_led [3][8],   // LEDs on IO Shield
+    output io_seg [8],      // 7-segment LEDs on IO Shield
+    output io_sel [4],      // Digit select on IO Shield
+    input io_button [5],    // 5 buttons on IO Shield
+    input io_dip [3][8]     // DIP switches on IO Shield
+  ) {
+  
+  sig rst;                  // reset signal
+  
+  // Synchronous button output
+  sig up_pressed;
+  sig down_pressed;
+  sig left_pressed;
+  sig right_pressed;
+  
+  // Constants to be used to check with current_location register if the current location is 
+  // at a boundary.
+  sig left_boundary[16];
+  sig right_boundary[16];
+  sig up_boundary[16];
+  sig down_boundary[16];
+  
+  sig test_blink;
+  
+
+  
+  .clk(clk) {
+    // The reset conditioner is used to synchronize the reset signal to the FPGA
+    // clock. This ensures the entire FPGA comes out of reset at the same time.
+    reset_conditioner reset_cond;
+    button_conditioner button_up_cond;
+    button_conditioner button_down_cond;
+    button_conditioner button_left_cond;
+    button_conditioner button_right_cond;
+    
+    edge_detector up_edge(#RISE(1), #FALL(0));
+    edge_detector down_edge(#RISE(1), #FALL(0));
+    edge_detector left_edge(#RISE(1), #FALL(0));
+    edge_detector right_edge(#RISE(1), #FALL(0));
+    
+    .rst(rst) {
+      // Registers to keep track of game states.
+      dff permament_map[16];
+      dff map_status[16];
+      dff current_location[16];
+      
+      // FSM for a single game
+      fsm instance_fsm = {IDLE, LEFT_BTN_STATE, RIGHT_BTN_STATE, UP_BTN_STATE, DOWN_BTN_STATE, 
+                          GO_LEFT_STATE, GO_RIGHT_STATE, GO_UP_STATE, GO_DOWN_STATE,
+                          CHECK_VALID_MOVE_STATE, UPDATE_MAP_STATE, CHECK_END_STATE};
+        
+      // FSM for the overall game
+      fsm overall_fsm = {INIT, LEVEL1, START_GAME};
+      
+      // counter to be used to perform LED blinking
+      blinker blinky;
+    }
+  }
+  
+  always {
+    reset_cond.in = ~rst_n; // input raw inverted reset signal
+    rst = reset_cond.out;   // conditioned reset
+    
+    led = 8h00;             // turn LEDs off
+    spi_miso = bz;          // not using SPI
+    spi_channel = bzzzz;    // not using flags
+    avr_rx = bz;            // not using serial port
+    
+    io_led = 3x{{8h00}};    // turn LEDs off
+    io_seg = 8hff;          // turn segments off
+    io_sel = 4hf;           // select no digits
+    
+    // Initialise buttons
+    button_up_cond.in = io_button[0];
+    up_edge.in = button_up_cond.out;
+    up_pressed = up_edge.out;
+    
+    button_down_cond.in = io_button[2];
+    down_edge.in = button_down_cond.out;
+    down_pressed = down_edge.out;
+    
+    button_left_cond.in = io_button[3];
+    left_edge.in = button_left_cond.out;
+    left_pressed = left_edge.out;
+    
+    button_right_cond.in = io_button[4];
+    right_edge.in = button_right_cond.out;
+    right_pressed = right_edge.out;
+    
+    
+    // Initialise boundary constants
+    left_boundary = 16b0001000100010001;
+    right_boundary = 16b1000100010001000;
+    up_boundary = 16b0001000000000000;
+    down_boundary = 16b0000000000001000;
+    
+    // Map map_status to LED displays
+    io_led[1] = map_status.q[15:8];
+    io_led[0] = map_status.q[7:0];    
+    
+    case (overall_fsm.q) {
+      overall_fsm.INIT:
+        if (io_button[1]) { // center button pressed
+          overall_fsm.d = overall_fsm.LEVEL1;
+        }
+        
+      overall_fsm.LEVEL1:
+        permament_map.d = 16b0000011001001100;
+        map_status.d = 16b0000011001001100;
+        current_location.d = 16b0000000010000000;
+        overall_fsm.d = overall_fsm.START_GAME;
+        
+    }
+    
+    case (instance_fsm.q) {
+      instance_fsm.IDLE:
+        if (overall_fsm.q == overall_fsm.START_GAME) {
+          if (up_pressed) // up
+            instance_fsm.d = instance_fsm.UP_BTN_STATE;
+          if (down_pressed) // down
+            instance_fsm.d = instance_fsm.DOWN_BTN_STATE;
+          if (left_pressed) // left
+            instance_fsm.d = instance_fsm.LEFT_BTN_STATE;
+          if (right_pressed) // right
+            instance_fsm.d = instance_fsm.RIGHT_BTN_STATE;
+          io_led[1] = map_status.q[15:8] | (current_location.q[15:8] & 8x{blinky.blink});
+          io_led[0] = map_status.q[7:0] | (current_location.q[7:0] & 8x{blinky.blink});    
+        }
+
+      instance_fsm.UP_BTN_STATE:
+        if (current_location.q < up_boundary)
+          instance_fsm.d = instance_fsm.GO_UP_STATE;
+        else
+          instance_fsm.d = instance_fsm.IDLE;
+          
+      instance_fsm.DOWN_BTN_STATE:
+        if (current_location.q > down_boundary)
+          instance_fsm.d = instance_fsm.GO_DOWN_STATE;
+        else
+          instance_fsm.d = instance_fsm.IDLE;
+          
+      instance_fsm.LEFT_BTN_STATE:
+        if ((current_location.q & left_boundary) == 0)
+          instance_fsm.d = instance_fsm.GO_LEFT_STATE;
+        else
+          instance_fsm.d = instance_fsm.IDLE;
+          
+      instance_fsm.RIGHT_BTN_STATE:
+        if ((current_location.q & right_boundary) == 0)
+          instance_fsm.d = instance_fsm.GO_RIGHT_STATE;
+        else
+          instance_fsm.d = instance_fsm.IDLE;
+      
+      instance_fsm.GO_UP_STATE:
+        current_location.d = current_location.q << 4;
+        instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
+      
+      instance_fsm.GO_DOWN_STATE:
+        current_location.d = current_location.q >> 4;
+        instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
+      
+      instance_fsm.GO_LEFT_STATE:
+        current_location.d = current_location.q >> 1;
+        instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
+      
+      instance_fsm.GO_RIGHT_STATE:
+        current_location.d = current_location.q << 1;
+        instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
+    
+      instance_fsm.CHECK_VALID_MOVE_STATE:
+        if ((current_location.q & map_status.q) == 0)
+          io_led[2][6] = 1; // Invalid move. Second right most LED lights up.
+        else
+          instance_fsm.d = instance_fsm.UPDATE_MAP_STATE;
+        
+      instance_fsm.UPDATE_MAP_STATE:
+        map_status.d = current_location.q ^ map_status.q;
+        instance_fsm.d = instance_fsm.CHECK_END_STATE;
+      
+      instance_fsm.CHECK_END_STATE:
+        if (map_status.q == 0)
+          io_led[2][7] = 1; // Win! Right most LED lights up.
+        else
+          instance_fsm.d = instance_fsm.IDLE;
+    }
+  }
+}
