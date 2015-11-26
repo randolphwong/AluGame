@@ -20,37 +20,20 @@ module mojo_top (
   
   sig rst;                  // reset signal
   
-  // Synchronous button output
-  sig up_pressed;
-  sig down_pressed;
-  sig left_pressed;
-  sig right_pressed;
-  
-  // Constants to be used to check with current_location register if the current location is 
-  // at a boundary.
-  sig left_boundary[16];
-  sig right_boundary[16];
-  sig up_boundary[16];
-  sig down_boundary[16];
-  
-  sig test_blink;
-  
-
-  sig in_a_sel[16];
-  sig in_b_sel[16];
-  sig alufn_sel[6];
-
-  alu my_alu;
-
   .clk(clk) {
     // The reset conditioner is used to synchronize the reset signal to the FPGA
     // clock. This ensures the entire FPGA comes out of reset at the same time.
     reset_conditioner reset_cond;
+    
+    // The button conditioner will synchronize and debounce a button input so that we can 
+    // reliably tell when it is pressed.
     button_conditioner button_up_cond;
     button_conditioner button_down_cond;
     button_conditioner button_left_cond;
     button_conditioner button_right_cond;
     
+    // The edge detector will detect when there is an edge on a button press and will
+    // set the output high for that clock cycle.
     edge_detector up_edge(#RISE(1), #FALL(0));
     edge_detector down_edge(#RISE(1), #FALL(0));
     edge_detector left_edge(#RISE(1), #FALL(0));
@@ -58,22 +41,48 @@ module mojo_top (
     
     .rst(rst) {
       // Registers to keep track of game states.
-      dff permament_map[16];
-      dff map_status[16];
-      dff current_location[16];
+      dff current_map[16];        // current map state, each bit represents a physical tile
+      dff current_location[16];   // current location state, high bit represents current location
       
-      // FSM for a single game
-      fsm instance_fsm = {IDLE, LEFT_BTN_STATE, RIGHT_BTN_STATE, UP_BTN_STATE, DOWN_BTN_STATE, 
-                          GO_LEFT_STATE, GO_RIGHT_STATE, GO_UP_STATE, GO_DOWN_STATE,
-                          CHECK_VALID_MOVE_STATE, UPDATE_MAP_STATE, CHECK_END_STATE};
+      // FSM for a single game.
+      fsm instance_fsm = {IDLE, LEFT_BTN_PRESSED, RIGHT_BTN_PRESSED, 
+                          UP_BTN_PRESSED, DOWN_BTN_PRESSED, 
+                          GO_LEFT, GO_RIGHT, GO_UP, GO_DOWN,
+                          CHECK_EMPTY_TILE, UPDATE_MAP, CHECK_ENDGAME};
         
-      // FSM for the overall game
+      // FSM for the overall game.
       fsm overall_fsm = {INIT, LEVEL1, START_GAME};
       
-      // counter to be used to perform LED blinking
+      // The blinker employers a dff to count up. Output is high on half the count. This
+      // produces a blinking effect on the output. We use this to blink the LED of the 
+      // current location to let the player know where they are at the moment.
       blinker blinky;
     }
   }
+  
+/**************************************************************************************************
+
+     Given any button press, if the direction is towards a dead end, we will need to prevent
+     such a move. We define four constants to determine if the current location is considered
+     a boundary case. 
+  
+     When moving up, current_location value must be less than 0001 0000 0000 0000 in order to 
+     produce a valid output upon being shifted left by 4 bits. 
+  
+     When moving down, current_location value must be greater than 0000 0000 0000 1000 in order to 
+     produce a valid output upon being shifted right by 4 bits. 
+         
+     When moving to the left, we check whether the current_location bit is at the corner by taking 
+     the conjunctive result of current_location and left_boundary. The same applies when moving to
+     the right.
+     
+**************************************************************************************************/
+  sig up_boundary[16];      // 0001 0000 0000 0000
+  sig down_boundary[16];    // 0000 0000 0000 1000
+  sig left_boundary[16];    // 0001 0001 0001 0001
+  sig right_boundary[16];   // 1000 1000 1000 1000
+  
+  alu my_alu;
   
   always {
     reset_cond.in = ~rst_n; // input raw inverted reset signal
@@ -88,22 +97,17 @@ module mojo_top (
     io_seg = 8hff;          // turn segments off
     io_sel = 4hf;           // select no digits
     
-    // Initialise buttons
-    button_up_cond.in = io_button[0];
-    up_edge.in = button_up_cond.out;
-    up_pressed = up_edge.out;
+    button_up_cond.in = io_button[0];      // synchronise up button press
+    up_edge.in = button_up_cond.out;       // get edge detection from sychonised button press
     
-    button_down_cond.in = io_button[2];
-    down_edge.in = button_down_cond.out;
-    down_pressed = down_edge.out;
+    button_down_cond.in = io_button[2];    // synchronise down button press
+    down_edge.in = button_down_cond.out;   // get edge detection from sychonised button press
     
-    button_left_cond.in = io_button[3];
-    left_edge.in = button_left_cond.out;
-    left_pressed = left_edge.out;
-    
-    button_right_cond.in = io_button[4];
-    right_edge.in = button_right_cond.out;
-    right_pressed = right_edge.out;
+    button_left_cond.in = io_button[3];    // synchronise left button press
+    left_edge.in = button_left_cond.out;   // get edge detection from sychonised button press
+                                                                                             
+    button_right_cond.in = io_button[4];   // synchronise right button press
+    right_edge.in = button_right_cond.out; // get edge detection from sychonised button press
     
     
     // Initialise boundary constants
@@ -112,20 +116,19 @@ module mojo_top (
     up_boundary = 16b0001000000000000;
     down_boundary = 16b0000000000001000;
     
-    // Map map_status to LED displays
-    io_led[1] = map_status.q[15:8];
-    io_led[0] = map_status.q[7:0];    
-    
+    // Map current_map to LED displays
+    io_led[1] = current_map.q[15:8];
+    io_led[0] = current_map.q[7:0];    
 
-    in_a_sel = 0;
-    in_b_sel = 0;
-    alufn_sel = 0;
+//    in_a_sel = 0;
+//    in_b_sel = 0;
+//    alufn_sel = 0;
 
     my_alu.clk = clk;
     my_alu.rst = rst;
-    my_alu.in_a = in_a_sel;
-    my_alu.in_b = in_b_sel;
-    my_alu.alufn = alufn_sel;
+    my_alu.in_a = 0;
+    my_alu.in_b = 0;
+    my_alu.alufn = 0;
 
     case (overall_fsm.q) {
       overall_fsm.INIT:
@@ -134,9 +137,8 @@ module mojo_top (
         }
         
       overall_fsm.LEVEL1:
-        permament_map.d = 16b0000011001001100;
-        map_status.d = 16b0000011001001100;
-        current_location.d = 16b0000000010000000;
+        current_map.d = 16b0000011001001100;        // hard coded map
+        current_location.d = 16b0000000010000000;   // current location
         overall_fsm.d = overall_fsm.START_GAME;
         
     }
@@ -144,114 +146,114 @@ module mojo_top (
     case (instance_fsm.q) {
       instance_fsm.IDLE:
         if (overall_fsm.q == overall_fsm.START_GAME) {
-          if (up_pressed) // up
-            instance_fsm.d = instance_fsm.UP_BTN_STATE;
-          if (down_pressed) // down
-            instance_fsm.d = instance_fsm.DOWN_BTN_STATE;
-          if (left_pressed) // left
-            instance_fsm.d = instance_fsm.LEFT_BTN_STATE;
-          if (right_pressed) // right
-            instance_fsm.d = instance_fsm.RIGHT_BTN_STATE;
+          if (up_edge.out) // rising edge of up button detected
+            instance_fsm.d = instance_fsm.UP_BTN_PRESSED;
+          if (down_edge.out) // rising edge of down button detected
+            instance_fsm.d = instance_fsm.DOWN_BTN_PRESSED;
+          if (left_edge.out) // rising edge of left button detected
+            instance_fsm.d = instance_fsm.LEFT_BTN_PRESSED;
+          if (right_edge.out) // rising edge of right button detected
+            instance_fsm.d = instance_fsm.RIGHT_BTN_PRESSED;
           
-          my_alu.in_a = map_status.q;
+          my_alu.in_a = current_map.q;
           my_alu.in_b = (current_location.q & 16x{blinky.blink});
           my_alu.alufn = Alufn.OR;
           io_led[1] = my_alu.out[15:8];
           io_led[0] = my_alu.out[7:0];
         }
 
-      instance_fsm.UP_BTN_STATE:
+      instance_fsm.UP_BTN_PRESSED:
         my_alu.in_a = current_location.q;
         my_alu.in_b = up_boundary;
         my_alu.alufn = Alufn.LT;
 
         if (my_alu.out)
-          instance_fsm.d = instance_fsm.GO_UP_STATE;
+          instance_fsm.d = instance_fsm.GO_UP;
         else
           instance_fsm.d = instance_fsm.IDLE;
           
-      instance_fsm.DOWN_BTN_STATE:
+      instance_fsm.DOWN_BTN_PRESSED:
         my_alu.in_a = current_location.q;
         my_alu.in_b = down_boundary;
         my_alu.alufn = Alufn.LE;
         
         if (!my_alu.out)
-          instance_fsm.d = instance_fsm.GO_DOWN_STATE;
+          instance_fsm.d = instance_fsm.GO_DOWN;
         else
           instance_fsm.d = instance_fsm.IDLE;
           
-      instance_fsm.LEFT_BTN_STATE:
+      instance_fsm.LEFT_BTN_PRESSED:
         my_alu.in_a = current_location.q;
         my_alu.in_b = left_boundary;
         my_alu.alufn = Alufn.AND;
         
         if (my_alu.out == 0)
-          instance_fsm.d = instance_fsm.GO_LEFT_STATE;
+          instance_fsm.d = instance_fsm.GO_LEFT;
         else
           instance_fsm.d = instance_fsm.IDLE;
           
-      instance_fsm.RIGHT_BTN_STATE:
+      instance_fsm.RIGHT_BTN_PRESSED:
         my_alu.in_a = current_location.q;
         my_alu.in_b = right_boundary;
         my_alu.alufn = Alufn.AND;
         
         if (my_alu.out == 0)
-          instance_fsm.d = instance_fsm.GO_RIGHT_STATE;
+          instance_fsm.d = instance_fsm.GO_RIGHT;
         else
           instance_fsm.d = instance_fsm.IDLE;
       
-      instance_fsm.GO_UP_STATE:
+      instance_fsm.GO_UP:
         my_alu.in_a = current_location.q;
         my_alu.in_b = 4;
         my_alu.alufn = Alufn.SHL;
         
         current_location.d = my_alu.out;
-        instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
+        instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
       
-      instance_fsm.GO_DOWN_STATE:
+      instance_fsm.GO_DOWN:
         my_alu.in_a = current_location.q;
         my_alu.in_b = 4;
         my_alu.alufn = Alufn.SHR;
         
         current_location.d = my_alu.out;
-        instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
+        instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
       
-      instance_fsm.GO_LEFT_STATE:
+      instance_fsm.GO_LEFT:
         my_alu.in_a = current_location.q;
         my_alu.in_b = 1;
         my_alu.alufn = Alufn.SHR;
         
         current_location.d = my_alu.out;
-        instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
+        instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
       
-      instance_fsm.GO_RIGHT_STATE:
+      instance_fsm.GO_RIGHT:
         my_alu.in_a = current_location.q;
         my_alu.in_b = 1;
         my_alu.alufn = Alufn.SHL;
         
         current_location.d = my_alu.out;
-        instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
+        instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
     
-      instance_fsm.CHECK_VALID_MOVE_STATE:
+      instance_fsm.CHECK_EMPTY_TILE:
         my_alu.in_a = current_location.q;
-        my_alu.in_b = map_status.q;
+        my_alu.in_b = current_map.q;
         my_alu.alufn = Alufn.AND;
         
         if (my_alu.out == 0)
           io_led[2][6] = 1; // Invalid move. Second right most LED lights up.
         else
-          instance_fsm.d = instance_fsm.UPDATE_MAP_STATE;
+          instance_fsm.d = instance_fsm.UPDATE_MAP;
         
-      instance_fsm.UPDATE_MAP_STATE:
+      instance_fsm.UPDATE_MAP:
         my_alu.in_a = current_location.q;
-        my_alu.in_b = map_status.q;
+        my_alu.in_b = current_map.q;
         my_alu.alufn = Alufn.XOR;
         
-        map_status.d = my_alu.out;
-        instance_fsm.d = instance_fsm.CHECK_END_STATE;
+        current_map.d = my_alu.out;
+        instance_fsm.d = instance_fsm.CHECK_ENDGAME;
       
-      instance_fsm.CHECK_END_STATE:
-        my_alu.in_a = map_status.q;
+      instance_fsm.CHECK_ENDGAME:
+        my_alu.in_a = current_map.q;
         my_alu.in_b = 0;
         my_alu.alufn = Alufn.EQ;
         
