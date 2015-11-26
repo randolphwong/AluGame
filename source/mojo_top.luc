@@ -35,22 +35,13 @@ module mojo_top (
   
   sig test_blink;
   
-  
-//  module alu (
-//    input clk,
-//    input rst,
-//    input in_a[8],
-//    input in_b[8],
-//    input alufn[6],
-//    output out[8],
-//    output z,
-//    output v,
-//    output n
+
+  sig in_a_sel[16];
+  sig in_b_sel[16];
+  sig alufn_sel[6];
 
   alu my_alu;
 
-
-  
   .clk(clk) {
     // The reset conditioner is used to synchronize the reset signal to the FPGA
     // clock. This ensures the entire FPGA comes out of reset at the same time.
@@ -125,6 +116,17 @@ module mojo_top (
     io_led[1] = map_status.q[15:8];
     io_led[0] = map_status.q[7:0];    
     
+
+    in_a_sel = 0;
+    in_b_sel = 0;
+    alufn_sel = 0;
+
+    my_alu.clk = clk;
+    my_alu.rst = rst;
+    my_alu.in_a = in_a_sel;
+    my_alu.in_b = in_b_sel;
+    my_alu.alufn = alufn_sel;
+
     case (overall_fsm.q) {
       overall_fsm.INIT:
         if (io_button[1]) { // center button pressed
@@ -155,10 +157,19 @@ module mojo_top (
         }
 
       instance_fsm.UP_BTN_STATE:
-        if (current_location.q < up_boundary)
+        in_a_sel = current_location.q;
+        in_b_sel = up_boundary;
+        alufn_sel = Alufn.LT;
+
+        if (my_alu.out)
           instance_fsm.d = instance_fsm.GO_UP_STATE;
         else
           instance_fsm.d = instance_fsm.IDLE;
+
+//        if (current_location.q < up_boundary)
+//          instance_fsm.d = instance_fsm.GO_UP_STATE;
+//        else
+//          instance_fsm.d = instance_fsm.IDLE;
           
       instance_fsm.DOWN_BTN_STATE:
         if (current_location.q > down_boundary)
