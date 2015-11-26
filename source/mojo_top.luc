@@ -152,71 +152,110 @@ module mojo_top (
             instance_fsm.d = instance_fsm.LEFT_BTN_STATE;
           if (right_pressed) // right
             instance_fsm.d = instance_fsm.RIGHT_BTN_STATE;
-          io_led[1] = map_status.q[15:8] | (current_location.q[15:8] & 8x{blinky.blink});
-          io_led[0] = map_status.q[7:0] | (current_location.q[7:0] & 8x{blinky.blink});    
+          
+          my_alu.in_a = map_status.q;
+          my_alu.in_b = (current_location.q & 16x{blinky.blink});
+          my_alu.alufn = Alufn.OR;
+          io_led[1] = my_alu.out[15:8];
+          io_led[0] = my_alu.out[7:0];
         }
 
       instance_fsm.UP_BTN_STATE:
-        in_a_sel = current_location.q;
-        in_b_sel = up_boundary;
-        alufn_sel = Alufn.LT;
+        my_alu.in_a = current_location.q;
+        my_alu.in_b = up_boundary;
+        my_alu.alufn = Alufn.LT;
 
         if (my_alu.out)
           instance_fsm.d = instance_fsm.GO_UP_STATE;
         else
           instance_fsm.d = instance_fsm.IDLE;
-
-//        if (current_location.q < up_boundary)
-//          instance_fsm.d = instance_fsm.GO_UP_STATE;
-//        else
-//          instance_fsm.d = instance_fsm.IDLE;
           
       instance_fsm.DOWN_BTN_STATE:
-        if (current_location.q > down_boundary)
+        my_alu.in_a = current_location.q;
+        my_alu.in_b = down_boundary;
+        my_alu.alufn = Alufn.LE;
+        
+        if (!my_alu.out)
           instance_fsm.d = instance_fsm.GO_DOWN_STATE;
         else
           instance_fsm.d = instance_fsm.IDLE;
           
       instance_fsm.LEFT_BTN_STATE:
-        if ((current_location.q & left_boundary) == 0)
+        my_alu.in_a = current_location.q;
+        my_alu.in_b = left_boundary;
+        my_alu.alufn = Alufn.AND;
+        
+        if (my_alu.out == 0)
           instance_fsm.d = instance_fsm.GO_LEFT_STATE;
         else
           instance_fsm.d = instance_fsm.IDLE;
           
       instance_fsm.RIGHT_BTN_STATE:
-        if ((current_location.q & right_boundary) == 0)
+        my_alu.in_a = current_location.q;
+        my_alu.in_b = right_boundary;
+        my_alu.alufn = Alufn.AND;
+        
+        if (my_alu.out == 0)
           instance_fsm.d = instance_fsm.GO_RIGHT_STATE;
         else
           instance_fsm.d = instance_fsm.IDLE;
       
       instance_fsm.GO_UP_STATE:
-        current_location.d = current_location.q << 4;
+        my_alu.in_a = current_location.q;
+        my_alu.in_b = 4;
+        my_alu.alufn = Alufn.SHL;
+        
+        current_location.d = my_alu.out;
         instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
       
       instance_fsm.GO_DOWN_STATE:
-        current_location.d = current_location.q >> 4;
+        my_alu.in_a = current_location.q;
+        my_alu.in_b = 4;
+        my_alu.alufn = Alufn.SHR;
+        
+        current_location.d = my_alu.out;
         instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
       
       instance_fsm.GO_LEFT_STATE:
-        current_location.d = current_location.q >> 1;
+        my_alu.in_a = current_location.q;
+        my_alu.in_b = 1;
+        my_alu.alufn = Alufn.SHR;
+        
+        current_location.d = my_alu.out;
         instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
       
       instance_fsm.GO_RIGHT_STATE:
-        current_location.d = current_location.q << 1;
+        my_alu.in_a = current_location.q;
+        my_alu.in_b = 1;
+        my_alu.alufn = Alufn.SHL;
+        
+        current_location.d = my_alu.out;
         instance_fsm.d = instance_fsm.CHECK_VALID_MOVE_STATE;
     
       instance_fsm.CHECK_VALID_MOVE_STATE:
-        if ((current_location.q & map_status.q) == 0)
+        my_alu.in_a = current_location.q;
+        my_alu.in_b = map_status.q;
+        my_alu.alufn = Alufn.AND;
+        
+        if (my_alu.out == 0)
           io_led[2][6] = 1; // Invalid move. Second right most LED lights up.
         else
           instance_fsm.d = instance_fsm.UPDATE_MAP_STATE;
         
       instance_fsm.UPDATE_MAP_STATE:
-        map_status.d = current_location.q ^ map_status.q;
+        my_alu.in_a = current_location.q;
+        my_alu.in_b = map_status.q;
+        my_alu.alufn = Alufn.XOR;
+        
+        map_status.d = my_alu.out;
         instance_fsm.d = instance_fsm.CHECK_END_STATE;
       
       instance_fsm.CHECK_END_STATE:
-        if (map_status.q == 0)
+        my_alu.in_a = map_status.q;
+        my_alu.in_b = 0;
+        my_alu.alufn = Alufn.EQ;
+        
+        if (my_alu.out)
           io_led[2][7] = 1; // Win! Right most LED lights up.
         else
           instance_fsm.d = instance_fsm.IDLE;
