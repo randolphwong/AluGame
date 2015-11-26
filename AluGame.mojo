@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="Game" board="Mojo V3" language="Lucid">
+<project name="AluGame" board="Mojo V3" language="Lucid">
   <files>
     <src top="true">mojo_top.luc</src>
     <src>blinker.luc</src>
