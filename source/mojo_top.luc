@@ -42,7 +42,7 @@ module mojo_top (
     .rst(rst) {
       // Registers to keep track of game states.
       dff current_map[16];        // current map state, each bit represents a physical tile
-      dff current_location[16];   // current location state, high bit represents current location
+      dff current_position[16];   // current position state, high bit represents current position
       
       // FSM for a single game.
       fsm instance_fsm = {IDLE, LEFT_BTN_PRESSED, RIGHT_BTN_PRESSED, 
@@ -55,7 +55,7 @@ module mojo_top (
       
       // The blinker employers a dff to count up. Output is high on half the count. This
       // produces a blinking effect on the output. We use this to blink the LED of the 
-      // current location to let the player know where they are at the moment.
+      // current position to let the player know where they are at the moment.
       blinker blinky;
     }
   }
@@ -63,17 +63,17 @@ module mojo_top (
 /**************************************************************************************************
 
      Given any button press, if the direction is towards a dead end, we will need to prevent
-     such a move. We define four constants to determine if the current location is considered
+     such a move. We define four constants to determine if the current position is considered
      a boundary case. 
   
-     When moving up, current_location value must be less than 0001 0000 0000 0000 in order to 
+     When moving up, current_position value must be less than 0001 0000 0000 0000 in order to 
      produce a valid output upon being shifted left by 4 bits. 
   
-     When moving down, current_location value must be greater than 0000 0000 0000 1000 in order to 
+     When moving down, current_position value must be greater than 0000 0000 0000 1000 in order to 
      produce a valid output upon being shifted right by 4 bits. 
          
-     When moving to the left, we check whether the current_location bit is at the corner by taking 
-     the conjunctive result of current_location and left_boundary. The same applies when moving to
+     When moving to the left, we check whether the current_position bit is at the corner by taking 
+     the conjunctive result of current_position and left_boundary. The same applies when moving to
      the right.
      
 **************************************************************************************************/
@@ -116,7 +116,7 @@ module mojo_top (
     up_boundary = 16b0001000000000000;
     down_boundary = 16b0000000000001000;
     
-    // Map current_map to LED displays
+    // Map current_map to IO Shield LED displays
     io_led[1] = current_map.q[15:8];
     io_led[0] = current_map.q[7:0];    
 
@@ -138,7 +138,7 @@ module mojo_top (
         
       overall_fsm.LEVEL1:
         current_map.d = 16b0000011001001100;        // hard coded map
-        current_location.d = 16b0000000010000000;   // current location
+        current_position.d = 16b0000000010000000;   // current position
         overall_fsm.d = overall_fsm.START_GAME;
         
     }
@@ -146,6 +146,7 @@ module mojo_top (
     case (instance_fsm.q) {
       instance_fsm.IDLE:
         if (overall_fsm.q == overall_fsm.START_GAME) {
+          // Wait for user to press any buttons.
           if (up_edge.out) // rising edge of up button detected
             instance_fsm.d = instance_fsm.UP_BTN_PRESSED;
           if (down_edge.out) // rising edge of down button detected
@@ -155,112 +156,147 @@ module mojo_top (
           if (right_edge.out) // rising edge of right button detected
             instance_fsm.d = instance_fsm.RIGHT_BTN_PRESSED;
           
+          // Display the current state of map onto the IO Shield LEDs.
+          // Also make the current position more obvious by blinking the corresponding LED.
+          // To do this, set io_led[1:0] = current map | (current position & blink state).
           my_alu.in_a = current_map.q;
-          my_alu.in_b = (current_location.q & 16x{blinky.blink});
+          my_alu.in_b = (current_position.q & 16x{blinky.blink});
           my_alu.alufn = Alufn.OR;
           io_led[1] = my_alu.out[15:8];
           io_led[0] = my_alu.out[7:0];
         }
 
       instance_fsm.UP_BTN_PRESSED:
-        my_alu.in_a = current_location.q;
-        my_alu.in_b = up_boundary;
-        my_alu.alufn = Alufn.LT;
+        // Determine whether it is possible to move up by checking
+        // if the current position is at the upper most row.
+        // Compare current position with up_boundary. It is a valid move 
+        // if current position is less than up_boundary.
+        my_alu.in_a = current_position.q;
+        my_alu.in_b = up_boundary;          // 0001 0000 0000 0000
+        my_alu.alufn = Alufn.LT;            // use < operator
 
-        if (my_alu.out)
+        if (my_alu.out)       // not a boundary case, proceed to move up
           instance_fsm.d = instance_fsm.GO_UP;
-        else
+        else                  // boundary detected, ignore button press
           instance_fsm.d = instance_fsm.IDLE;
           
       instance_fsm.DOWN_BTN_PRESSED:
-        my_alu.in_a = current_location.q;
-        my_alu.in_b = down_boundary;
-        my_alu.alufn = Alufn.LE;
+        // Determine whether it is possible to move down by checking
+        // if the current position is at the lower most row.
+        // Compare current position with down_boundary. It is a valid move 
+        // if current position is greater than down_boundary.
+        my_alu.in_a = current_position.q;
+        my_alu.in_b = down_boundary;        // 0000 0000 0000 1000
+        my_alu.alufn = Alufn.LE;            // use <= operator
         
-        if (!my_alu.out)
+        if (!my_alu.out)      // not a boundary case, proceed to move down
           instance_fsm.d = instance_fsm.GO_DOWN;
-        else
+        else                  // boundary detected, ignore button press
           instance_fsm.d = instance_fsm.IDLE;
           
       instance_fsm.LEFT_BTN_PRESSED:
-        my_alu.in_a = current_location.q;
-        my_alu.in_b = left_boundary;
+        // Determine whether it is possible to move left by checking
+        // if the current position is at a corner.
+        // It is a valid move if the conjunction between current position 
+        // and left_boundary is 0.
+        my_alu.in_a = current_position.q;
+        my_alu.in_b = left_boundary;        // 0001 0001 0001 0001
         my_alu.alufn = Alufn.AND;
         
-        if (my_alu.out == 0)
+        if (my_alu.out == 0)  // not a boundary case, proceed to move left
           instance_fsm.d = instance_fsm.GO_LEFT;
-        else
+        else                  // boundary detected, ignore button press
           instance_fsm.d = instance_fsm.IDLE;
           
       instance_fsm.RIGHT_BTN_PRESSED:
-        my_alu.in_a = current_location.q;
-        my_alu.in_b = right_boundary;
+        // Determine whether it is possible to move right by checking
+        // if the current position is at a corner.
+        // It is a valid move if the conjunction between current position 
+        // and right_boundary is 0.
+        my_alu.in_a = current_position.q;
+        my_alu.in_b = right_boundary;       // 1000 1000 1000 1000
         my_alu.alufn = Alufn.AND;
         
-        if (my_alu.out == 0)
+        if (my_alu.out == 0)  // not a boundary case, proceed to move right
           instance_fsm.d = instance_fsm.GO_RIGHT;
-        else
+        else                  // boundary detected, ignore button press
           instance_fsm.d = instance_fsm.IDLE;
       
       instance_fsm.GO_UP:
-        my_alu.in_a = current_location.q;
-        my_alu.in_b = 4;
+        // Move current position to the tile above.
+        // This is done by shifting current position to the left by 4.
+        my_alu.in_a = current_position.q;
+        my_alu.in_b = 4;                    // shift left by 4
         my_alu.alufn = Alufn.SHL;
         
-        current_location.d = my_alu.out;
+        current_position.d = my_alu.out;
         instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
       
       instance_fsm.GO_DOWN:
-        my_alu.in_a = current_location.q;
-        my_alu.in_b = 4;
+        // Move current position to the tile below.
+        // This is done by shifting current position to the right by 4.
+        my_alu.in_a = current_position.q;
+        my_alu.in_b = 4;                    // shift right by 4
         my_alu.alufn = Alufn.SHR;
         
-        current_location.d = my_alu.out;
+        current_position.d = my_alu.out;
         instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
       
       instance_fsm.GO_LEFT:
-        my_alu.in_a = current_location.q;
-        my_alu.in_b = 1;
+        // Move current position to the tile at the left.
+        // This is done by shifting current position to the right by 1.
+        my_alu.in_a = current_position.q;
+        my_alu.in_b = 1;                    // shift right by 1
         my_alu.alufn = Alufn.SHR;
         
-        current_location.d = my_alu.out;
+        current_position.d = my_alu.out;
         instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
       
       instance_fsm.GO_RIGHT:
-        my_alu.in_a = current_location.q;
-        my_alu.in_b = 1;
+        // Move current position to the tile at the left.
+        // This is done by shifting current position to the left by 1.
+        my_alu.in_a = current_position.q;
+        my_alu.in_b = 1;                    // shift left by 1
         my_alu.alufn = Alufn.SHL;
         
-        current_location.d = my_alu.out;
+        current_position.d = my_alu.out;
         instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
     
       instance_fsm.CHECK_EMPTY_TILE:
-        my_alu.in_a = current_location.q;
+        // Determine whether the current position is on an empty tile.
+        // This is the case when the conjunction of current position 
+        // and current map is 0.
+        my_alu.in_a = current_position.q;
         my_alu.in_b = current_map.q;
         my_alu.alufn = Alufn.AND;
         
-        if (my_alu.out == 0)
-          io_led[2][6] = 1; // Invalid move. Second right most LED lights up.
-        else
+        if (my_alu.out == 0)  // current position is on empty tile
+          io_led[2][6] = 1;   // second right most LED lights up to signify game over
+        else                  // current position is on a legit tile
           instance_fsm.d = instance_fsm.UPDATE_MAP;
         
       instance_fsm.UPDATE_MAP:
-        my_alu.in_a = current_location.q;
+        // Update the map, that is, delete the tile that the current position
+        // is on. This is done by flipping the bit on the current map that 
+        // corresponds to the high bit on current position.
+        my_alu.in_a = current_position.q;
         my_alu.in_b = current_map.q;
         my_alu.alufn = Alufn.XOR;
         
-        current_map.d = my_alu.out;
+        current_map.d = my_alu.out;    // current map = current map ^ current position
         instance_fsm.d = instance_fsm.CHECK_ENDGAME;
       
       instance_fsm.CHECK_ENDGAME:
+        // Determine whether this instance of game has ended. When all tiles have been
+        // deleted, then the game is considered to be ended.
         my_alu.in_a = current_map.q;
         my_alu.in_b = 0;
-        my_alu.alufn = Alufn.EQ;
+        my_alu.alufn = Alufn.EQ;      // current map == 0
         
-        if (my_alu.out)
-          io_led[2][7] = 1; // Win! Right most LED lights up.
-        else
-          instance_fsm.d = instance_fsm.IDLE;
+        if (my_alu.out)                         // all tiles have been deleted
+          io_led[2][7] = 1; // Right most LED lights up to signify a win in current level
+        else                                    // not all tiles have been deleted
+          instance_fsm.d = instance_fsm.IDLE;   // go back to idle to wait for user input
     }
   }
 }
