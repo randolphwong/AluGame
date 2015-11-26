@@ -35,6 +35,20 @@ module mojo_top (
   
   sig test_blink;
   
+  
+//  module alu (
+//    input clk,
+//    input rst,
+//    input in_a[8],
+//    input in_b[8],
+//    input alufn[6],
+//    output out[8],
+//    output z,
+//    output v,
+//    output n
+
+  alu my_alu;
+
 
   
   .clk(clk) {

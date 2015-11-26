@@ -1,0 +1,81 @@
+module alu (
+    input clk,
+    input rst,
+    input in_a[8],
+    input in_b[8],
+    input alufn[6],
+    output out[8],
+    output z,
+    output v,
+    output n
+  ) {
+  
+  const ADD = 6b000000;
+  const SUB = 6b000001;
+  const AND = 6b011000;
+  const OR  = 6b011110;
+  const XOR = 6b010110;
+  const NOT = 6b010111;
+  const LDR = 6b011010;
+  const SHL = 6b100000;
+  const SHR = 6b100001;
+  const SRA = 6b100011;
+  const ROL = 6b100100;
+  const ROR = 6b100101;
+  const EQ  = 6b110011;
+  const LT  = 6b110101;
+  const LE  = 6b110111;
+  
+  sig temporary_output[8];
+  sig xb[8];
+
+  always {
+    out = 0;
+    temporary_output = 0;
+    v = 0;
+    xb = 0;
+    
+    case (alufn) {
+      ADD:
+        temporary_output = in_a + in_b;
+      SUB:
+        temporary_output = $signed(in_a) - $signed(in_b);
+      AND:
+        temporary_output = in_a & in_b;
+      OR:
+        temporary_output = in_a | in_b;
+      XOR:
+        temporary_output = in_a ^ in_b;
+      NOT:
+        temporary_output = ~in_a;
+      LDR:
+        temporary_output = in_a;
+      SHL:
+        temporary_output = in_a << in_b[2:0];
+      SHR:
+        temporary_output = in_a >> in_b[2:0];
+      SRA:
+        temporary_output = $signed(in_a) >>> in_b[2:0];
+      ROL:
+        temporary_output = ((in_a << in_b[2:0]) & 8hFF) | ((in_a & 8hFF) >> (8 - in_b[2:0]));
+      ROR:
+        temporary_output = ((in_a & 8hFF) >> in_b[2:0]) | ((in_a << (8 - in_b[2:0])) & 8hFF);
+      EQ:
+        temporary_output = in_a == in_b;
+      LT:
+        temporary_output = $signed(in_a) < $signed(in_b);
+      LE:
+        temporary_output = $signed(in_a) <= $signed(in_b);
+    }
+    out = temporary_output;
+    z = ~|temporary_output; // 8 bit nor gate
+    n = temporary_output[7];
+    xb = ~in_b + 1;
+
+    // Set overflow bit only when doing add/sub
+    if (alufn == SUB)
+      v = (~temporary_output[7] & in_a[7] & xb[7]) | (temporary_output[7] & ~in_a[7] & ~xb[7]);
+    else if (alufn == ADD)
+      v = (~temporary_output[7] & in_a[7] & in_b[7]) | (temporary_output[7] & ~in_a[7] & in_b[7]);
+  }
+}
