@@ -18,8 +18,6 @@ global Alufn {
 }
 
 module alu (
-    input clk,
-    input rst,
     input in_a[16],
     input in_b[16],
     input alufn[6],
