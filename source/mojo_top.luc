@@ -6,7 +6,7 @@
      0:
        my_alu.in_a = something;
      1:
-       my_alu.in_b = something_else;
+       my_alu.in_a = something_else;
    }
 ****************************************************************************************************/
 
@@ -52,7 +52,35 @@ module mojo_top (
     edge_detector right_edge(#RISE(1), #FALL(0));
     
     .rst(rst) {
-      // Registers to keep track of game states.
+
+/**************************************************************************************************
+
+    current_map and current_position are 16-bit registers that keep tracks of the state of the
+    current map and position respectively. 
+
+    A map is a 4x4 grid that contains 16 tiles. Each tile can either be empty or tiled. By using
+    0 to represent an empty tile and 1 to represent the opposite, a map can be visualised as such:
+    
+    0 0 0 0
+    0 0 0 0
+    0 1 1 0
+    0 1 1 1
+
+    This can be translated into a 16-bit number 0000 0000 0110 1110. The lower left hand corner
+    of the map is the LSB, while the upper right hand corner of the map is the MSB.
+
+    A current position is a 4x4 grid with only 1 grid being occupied at any point of time. Here
+    is a visualisation of the grid:
+
+    0 0 0 0
+    0 0 0 0
+    0 0 0 1
+    0 0 0 0
+
+    Similar to the map, this can also be translated into a 16-bit number, where the LSB and MSB
+    correspond to the same grids as in the map.
+     
+**************************************************************************************************/
       dff current_map[16];        // current map state, each bit represents a physical tile
       dff current_position[16];   // current position state, high bit represents current position
       
@@ -94,6 +122,7 @@ module mojo_top (
   sig left_boundary[16];    // 0001 0001 0001 0001
   sig right_boundary[16];   // 1000 1000 1000 1000
   
+  // These are the multiplexors whose output will be connected to the ALU.
   sig in_a_sel[16];
   sig in_b_sel[16];
   sig alufn_sel[6];
@@ -140,8 +169,6 @@ module mojo_top (
     in_b_sel = 0;
     alufn_sel = 0;
 
-    my_alu.clk = clk;
-    my_alu.rst = rst;
     my_alu.in_a = 0;
     my_alu.in_b = 0;
     my_alu.alufn = 0;
