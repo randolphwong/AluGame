@@ -91,7 +91,7 @@ module mojo_top (
                           CHECK_EMPTY_TILE, UPDATE_MAP, CHECK_ENDGAME};
         
       // FSM for the overall game.
-      fsm overall_fsm = {INIT, LEVEL1, START_GAME};
+      fsm overall_fsm = {INIT, LEVEL1, START_GAME, GAMEOVER, WIN};
       
       // The blinker employers a dff to count up. Output is high on half the count. This
       // produces a blinking effect on the output. We use this to blink the LED of the 
@@ -183,6 +183,20 @@ module mojo_top (
         current_map.d = 16b0000011001001100;        // hard coded map
         current_position.d = 16b0000000010000000;   // current position
         overall_fsm.d = overall_fsm.START_GAME;
+        
+      overall_fsm.GAMEOVER:
+        //current level is replayed when the center button is pressed 
+        io_led[2][6] = 1;   // second right most LED lights up to signify game over
+        if (io_button[1])  { //if center button is pressed
+        overall_fsm.d = overall_fsm.LEVEL1;
+        instance_fsm.d = instance_fsm.IDLE;
+        }
+        
+      overall_fsm.WIN:
+      //game is completed and all the map leds light up and come alive for celebration!
+        io_led[2][7] = 1; // Right most LED lights up to signify a win in current level
+        io_led[1] = b11111111;
+        io_led[0] = b11111111;
         
     }
     
@@ -313,10 +327,13 @@ module mojo_top (
         in_b_sel = current_map.q;
         alufn_sel = Alufn.AND;
         
-        if (my_alu.out == 0)  // current position is on empty tile
-          io_led[2][6] = 1;   // second right most LED lights up to signify game over
+        if (my_alu.out == 0) // current position is on empty tile
+          overall_fsm.d = overall_fsm.GAMEOVER;
+          
         else                  // current position is on a legit tile
           instance_fsm.d = instance_fsm.UPDATE_MAP;
+        
+      
         
       instance_fsm.UPDATE_MAP:
         // Update the map, that is, delete the tile that the current position
@@ -337,7 +354,8 @@ module mojo_top (
         alufn_sel = Alufn.EQ;      // current map == 0
         
         if (my_alu.out)                         // all tiles have been deleted
-          io_led[2][7] = 1; // Right most LED lights up to signify a win in current level
+          overall_fsm.d = overall_fsm.WIN;
+          
         else                                    // not all tiles have been deleted
           instance_fsm.d = instance_fsm.IDLE;   // go back to idle to wait for user input
     }
