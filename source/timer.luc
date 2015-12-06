@@ -1,0 +1,20 @@
+module timer (
+    input clk,  // clock
+    input rst,  // reset
+    output out[6]
+  ) {
+  
+  sig tick;
+  
+  dff counter[26](.clk(clk), .rst(tick));
+  dff timer[6](#INIT(60), .clk(tick), .rst(rst));
+  
+  always {
+    // Mojo frequency is 50Mhz, so when it counts to 50 million
+    // or 26b10111110101111000010000000, one second should pass.
+    tick = (counter.q ^ 26b10111110101111000010000000) == 0;
+    counter.d = counter.q + 1;
+    timer.d = timer.q - 1;
+    out = timer.q;
+  }
+}

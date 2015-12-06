@@ -1,3 +1,9 @@
+/**************************************************************************************************
+
+   TODO: Fix bug where user cannot go down from top right corner.
+     
+**************************************************************************************************/
+
 module mojo_top (
     input clk,              // 50MHz clock
     input rst_n,            // reset button (active low)
@@ -38,6 +44,8 @@ module mojo_top (
     edge_detector down_edge(#RISE(1), #FALL(0));
     edge_detector left_edge(#RISE(1), #FALL(0));
     edge_detector right_edge(#RISE(1), #FALL(0));
+    
+    timer timey;
     
     .rst(rst) {
 
@@ -111,7 +119,7 @@ module mojo_top (
   alu my_alu;
   
   level_ROM mlevel_ROM;
-  
+    
   always {
     reset_cond.in = ~rst_n; // input raw inverted reset signal
     rst = reset_cond.out;   // conditioned reset
@@ -154,6 +162,8 @@ module mojo_top (
     
     mlevel_ROM.level = 0;
     
+    timey.rst = 0;
+    
     case (game_fsm.q) {
       game_fsm.INIT:
         if (io_button[1]) { // center button pressed
@@ -164,7 +174,14 @@ module mojo_top (
         mlevel_ROM.level = current_level.q;
         current_map.d = mlevel_ROM.map;        // hard coded map
         current_position.d = mlevel_ROM.position;   // current position
-        game_fsm.d = game_fsm.IDLE;
+        
+        timey.rst = 1;  // restart timing
+        my_alu.in_a = timey.out;
+        my_alu.in_b = 60;
+        my_alu.alufn = Alufn.EQ;            // timey == 60 second
+        
+        if (my_alu.out) // timer has been reset
+          game_fsm.d = game_fsm.IDLE;
         
       game_fsm.IDLE:
           // Wait for user to press any buttons.
@@ -187,7 +204,12 @@ module mojo_top (
           io_led[0] = my_alu.out[7:0];
           
           // for debugging
-          io_led[2] = current_level.q; // display current level at the left more set of LEDs
+//          io_led[2] = current_level.q; // display current level at the left more set of LEDs
+          io_led[2] = timey.out;
+          // Player loses when time is up.
+          if (timey.out == 0) { // times up!
+            game_fsm.d = game_fsm.GAMEOVER;
+          }
 
       game_fsm.UP_BTN_PRESSED:
         // Determine whether it is possible to move up by checking
