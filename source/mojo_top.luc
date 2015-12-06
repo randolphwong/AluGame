@@ -74,14 +74,10 @@ module mojo_top (
       dff current_level[4](#INIT(1));   // current level state, ranging from level 1 to 15
       
       // FSM for a single game.
-      fsm instance_fsm = {IDLE, LEFT_BTN_PRESSED, RIGHT_BTN_PRESSED, 
-                          UP_BTN_PRESSED, DOWN_BTN_PRESSED, 
-                          GO_LEFT, GO_RIGHT, GO_UP, GO_DOWN,
-                          CHECK_EMPTY_TILE, UPDATE_MAP, CHECK_ENDGAME,
-                          GAMEOVER, WIN};
-        
-      // FSM for the overall game.
-      fsm overall_fsm = {INIT, START_GAME, IDLE, COMPLETE};
+      fsm game_fsm = {INIT, INITIALISE_LEVEL, IDLE, LEFT_BTN_PRESSED, RIGHT_BTN_PRESSED, 
+                          UP_BTN_PRESSED, DOWN_BTN_PRESSED, GO_LEFT, GO_RIGHT, GO_UP, GO_DOWN,
+                          CHECK_EMPTY_TILE, UPDATE_MAP, CHECK_ENDLEVEL, GAMEOVER, WIN,
+                          CHECK_ENDGAME, COMPLETE};
       
       // The blinker employers a dff to count up. Output is high on half the count. This
       // produces a blinking effect on the output. We use this to blink the LED of the 
@@ -157,41 +153,29 @@ module mojo_top (
     my_alu.alufn = 0;
     
     mlevel_ROM.level = 0;
-
-    case (overall_fsm.q) {
-      overall_fsm.INIT:
+    
+    case (game_fsm.q) {
+      game_fsm.INIT:
         if (io_button[1]) { // center button pressed
-          overall_fsm.d = overall_fsm.START_GAME;
+          game_fsm.d = game_fsm.INITIALISE_LEVEL;
         }
         
-      overall_fsm.START_GAME:
+      game_fsm.INITIALISE_LEVEL:
         mlevel_ROM.level = current_level.q;
         current_map.d = mlevel_ROM.map;        // hard coded map
         current_position.d = mlevel_ROM.position;   // current position
+        game_fsm.d = game_fsm.IDLE;
         
-        overall_fsm.d = overall_fsm.IDLE;
-        
-        
-      overall_fsm.COMPLETE:
-      //game is completed and all the map leds light up and come alive for celebration!
-        io_led[2][7] = 1; // Right most LED lights up to signify a win in current level
-        io_led[1] = 8b11111111;
-        io_led[0] = 8b11111111;
-        
-    }
-    
-    case (instance_fsm.q) {
-      instance_fsm.IDLE:
-        if (overall_fsm.q == overall_fsm.IDLE) { // wait for overall fsm to be done setting up
+      game_fsm.IDLE:
           // Wait for user to press any buttons.
           if (up_edge.out) // rising edge of up button detected
-            instance_fsm.d = instance_fsm.UP_BTN_PRESSED;
+            game_fsm.d = game_fsm.UP_BTN_PRESSED;
           if (down_edge.out) // rising edge of down button detected
-            instance_fsm.d = instance_fsm.DOWN_BTN_PRESSED;
+            game_fsm.d = game_fsm.DOWN_BTN_PRESSED;
           if (left_edge.out) // rising edge of left button detected
-            instance_fsm.d = instance_fsm.LEFT_BTN_PRESSED;
+            game_fsm.d = game_fsm.LEFT_BTN_PRESSED;
           if (right_edge.out) // rising edge of right button detected
-            instance_fsm.d = instance_fsm.RIGHT_BTN_PRESSED;
+            game_fsm.d = game_fsm.RIGHT_BTN_PRESSED;
           
           // Display the current state of map onto the IO Shield LEDs.
           // Also make the current position more obvious by blinking the corresponding LED.
@@ -204,9 +188,8 @@ module mojo_top (
           
           // for debugging
           io_led[2] = current_level.q; // display current level at the left more set of LEDs
-        }
 
-      instance_fsm.UP_BTN_PRESSED:
+      game_fsm.UP_BTN_PRESSED:
         // Determine whether it is possible to move up by checking
         // if the current position is at the upper most row.
         // Compare current position with up_boundary. It is a valid move 
@@ -216,11 +199,11 @@ module mojo_top (
         my_alu.alufn = Alufn.LT;            // use < operator
 
         if (my_alu.out)       // not a boundary case, proceed to move up
-          instance_fsm.d = instance_fsm.GO_UP;
+          game_fsm.d = game_fsm.GO_UP;
         else                  // boundary detected, ignore button press
-          instance_fsm.d = instance_fsm.IDLE;
+          game_fsm.d = game_fsm.IDLE;
           
-      instance_fsm.DOWN_BTN_PRESSED:
+      game_fsm.DOWN_BTN_PRESSED:
         // Determine whether it is possible to move down by checking
         // if the current position is at the lower most row.
         // Compare current position with down_boundary. It is a valid move 
@@ -230,11 +213,11 @@ module mojo_top (
         my_alu.alufn = Alufn.LE;            // use <= operator
         
         if (!my_alu.out)      // not a boundary case, proceed to move down
-          instance_fsm.d = instance_fsm.GO_DOWN;
+          game_fsm.d = game_fsm.GO_DOWN;
         else                  // boundary detected, ignore button press
-          instance_fsm.d = instance_fsm.IDLE;
+          game_fsm.d = game_fsm.IDLE;
           
-      instance_fsm.LEFT_BTN_PRESSED:
+      game_fsm.LEFT_BTN_PRESSED:
         // Determine whether it is possible to move left by checking
         // if the current position is at a corner.
         // It is a valid move if the conjunction between current position 
@@ -244,11 +227,11 @@ module mojo_top (
         my_alu.alufn = Alufn.AND;
         
         if (my_alu.out == 0)  // not a boundary case, proceed to move left
-          instance_fsm.d = instance_fsm.GO_LEFT;
+          game_fsm.d = game_fsm.GO_LEFT;
         else                  // boundary detected, ignore button press
-          instance_fsm.d = instance_fsm.IDLE;
+          game_fsm.d = game_fsm.IDLE;
           
-      instance_fsm.RIGHT_BTN_PRESSED:
+      game_fsm.RIGHT_BTN_PRESSED:
         // Determine whether it is possible to move right by checking
         // if the current position is at a corner.
         // It is a valid move if the conjunction between current position 
@@ -258,11 +241,11 @@ module mojo_top (
         my_alu.alufn = Alufn.AND;
         
         if (my_alu.out == 0)  // not a boundary case, proceed to move right
-          instance_fsm.d = instance_fsm.GO_RIGHT;
+          game_fsm.d = game_fsm.GO_RIGHT;
         else                  // boundary detected, ignore button press
-          instance_fsm.d = instance_fsm.IDLE;
+          game_fsm.d = game_fsm.IDLE;
       
-      instance_fsm.GO_UP:
+      game_fsm.GO_UP:
         // Move current position to the tile above.
         // This is done by shifting current position to the left by 4.
         my_alu.in_a = current_position.q;
@@ -270,9 +253,9 @@ module mojo_top (
         my_alu.alufn = Alufn.SHL;
         
         current_position.d = my_alu.out;
-        instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
+        game_fsm.d = game_fsm.CHECK_EMPTY_TILE;
       
-      instance_fsm.GO_DOWN:
+      game_fsm.GO_DOWN:
         // Move current position to the tile below.
         // This is done by shifting current position to the right by 4.
         my_alu.in_a = current_position.q;
@@ -280,9 +263,9 @@ module mojo_top (
         my_alu.alufn = Alufn.SHR;
         
         current_position.d = my_alu.out;
-        instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
+        game_fsm.d = game_fsm.CHECK_EMPTY_TILE;
       
-      instance_fsm.GO_LEFT:
+      game_fsm.GO_LEFT:
         // Move current position to the tile at the left.
         // This is done by shifting current position to the right by 1.
         my_alu.in_a = current_position.q;
@@ -290,9 +273,9 @@ module mojo_top (
         my_alu.alufn = Alufn.SHR;
         
         current_position.d = my_alu.out;
-        instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
+        game_fsm.d = game_fsm.CHECK_EMPTY_TILE;
       
-      instance_fsm.GO_RIGHT:
+      game_fsm.GO_RIGHT:
         // Move current position to the tile at the left.
         // This is done by shifting current position to the left by 1.
         my_alu.in_a = current_position.q;
@@ -300,9 +283,9 @@ module mojo_top (
         my_alu.alufn = Alufn.SHL;
         
         current_position.d = my_alu.out;
-        instance_fsm.d = instance_fsm.CHECK_EMPTY_TILE;
+        game_fsm.d = game_fsm.CHECK_EMPTY_TILE;
     
-      instance_fsm.CHECK_EMPTY_TILE:
+      game_fsm.CHECK_EMPTY_TILE:
         // Determine whether the current position is on an empty tile.
         // This is the case when the conjunction of current position 
         // and current map is 0.
@@ -311,14 +294,14 @@ module mojo_top (
         my_alu.alufn = Alufn.AND;
         
         if (my_alu.out == 0) // current position is on empty tile
-          instance_fsm.d = instance_fsm.GAMEOVER;
+          game_fsm.d = game_fsm.GAMEOVER;
           
         else                  // current position is on a legit tile
-          instance_fsm.d = instance_fsm.UPDATE_MAP;
+          game_fsm.d = game_fsm.UPDATE_MAP;
         
       
         
-      instance_fsm.UPDATE_MAP:
+      game_fsm.UPDATE_MAP:
         // Update the map, that is, delete the tile that the current position
         // is on. This is done by flipping the bit on the current map that 
         // corresponds to the high bit on current position.
@@ -327,9 +310,9 @@ module mojo_top (
         my_alu.alufn = Alufn.XOR;
         
         current_map.d = my_alu.out;    // current map = current map ^ current position
-        instance_fsm.d = instance_fsm.CHECK_ENDGAME;
+        game_fsm.d = game_fsm.CHECK_ENDLEVEL;
       
-      instance_fsm.CHECK_ENDGAME:
+      game_fsm.CHECK_ENDLEVEL:
         // Determine whether this instance of game has ended. When all tiles have been
         // deleted, then the game is considered to be ended.
         my_alu.in_a = current_map.q;
@@ -337,21 +320,20 @@ module mojo_top (
         my_alu.alufn = Alufn.EQ;      // current map == 0
         
         if (my_alu.out)                         // all tiles have been deleted
-          instance_fsm.d = instance_fsm.WIN;
+          game_fsm.d = game_fsm.WIN;
           
         else                                    // not all tiles have been deleted
-          instance_fsm.d = instance_fsm.IDLE;   // go back to idle to wait for user input
+          game_fsm.d = game_fsm.IDLE;   // go back to idle to wait for user input
       
-      instance_fsm.GAMEOVER:
+      game_fsm.GAMEOVER:
         // Player lost the level. Waits for user to press the center button 
         // to restart level.
         io_led[2][6] = 1;   // second right most LED lights up to signify game over
         if (io_button[1])  { //if center button is pressed
-            overall_fsm.d = overall_fsm.START_GAME;
-            instance_fsm.d = instance_fsm.IDLE;
+            game_fsm.d = game_fsm.INITIALISE_LEVEL;
         }
       
-      instance_fsm.WIN:
+      game_fsm.WIN:
         // Player won the level. Increase the level counter and prepare
         // to begin new game.
         my_alu.in_a = current_level.q;
@@ -359,8 +341,23 @@ module mojo_top (
         my_alu.alufn = Alufn.ADD;      // current level ++
         
         current_level.d = my_alu.out[3:0]; // update the current level
-        overall_fsm.d = overall_fsm.START_GAME; // begin new level
-        instance_fsm.d = instance_fsm.IDLE;
+        game_fsm.d = game_fsm.CHECK_ENDGAME; // begin new level
+        
+      game_fsm.CHECK_ENDGAME:
+        // Determine whether player has completed all levels. 
+        my_alu.in_a = current_level.q;
+        my_alu.in_b = 10;
+        my_alu.alufn = Alufn.LT;      // use < operator
+        if (my_alu.out) // not yet complete
+          game_fsm.d = game_fsm.INITIALISE_LEVEL;
+        else            // game completed
+          game_fsm.d = game_fsm.COMPLETE;
+        
+      game_fsm.COMPLETE:
+      //game is completed and all the map leds light up and come alive for celebration!
+        io_led[2][7] = 1; // Right most LED lights up to signify a win in current level
+        io_led[1] = 8b11111111;
+        io_led[0] = 8b11111111;
     }
   }
 }
