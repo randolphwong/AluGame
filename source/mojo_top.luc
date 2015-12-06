@@ -114,6 +114,8 @@ module mojo_top (
   
   alu my_alu;
   
+  level_ROM mlevel_ROM;
+  
   always {
     reset_cond.in = ~rst_n; // input raw inverted reset signal
     rst = reset_cond.out;   // conditioned reset
@@ -153,6 +155,8 @@ module mojo_top (
     my_alu.in_a = 0;
     my_alu.in_b = 0;
     my_alu.alufn = 0;
+    
+    mlevel_ROM.level = 0;
 
     case (overall_fsm.q) {
       overall_fsm.INIT:
@@ -161,8 +165,9 @@ module mojo_top (
         }
         
       overall_fsm.START_GAME:
-        current_map.d = 16b0111011111010111;        // hard coded map
-        current_position.d = 16b0000000000001000;   // current position
+        mlevel_ROM.level = current_level.q;
+        current_map.d = mlevel_ROM.map;        // hard coded map
+        current_position.d = mlevel_ROM.position;   // current position
         
         overall_fsm.d = overall_fsm.IDLE;
         
