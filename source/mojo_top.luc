@@ -81,7 +81,7 @@ module mojo_top (
                           GAMEOVER, WIN};
         
       // FSM for the overall game.
-      fsm overall_fsm = {INIT, START_GAME, COMPLETE};
+      fsm overall_fsm = {INIT, START_GAME, IDLE, COMPLETE};
       
       // The blinker employers a dff to count up. Output is high on half the count. This
       // produces a blinking effect on the output. We use this to blink the LED of the 
@@ -161,9 +161,11 @@ module mojo_top (
         }
         
       overall_fsm.START_GAME:
-        current_map.d = 16b0000011001001100;        // hard coded map
-        current_position.d = 16b0000000010000000;   // current position
-        overall_fsm.d = overall_fsm.START_GAME;
+        current_map.d = 16b0111011111010111;        // hard coded map
+        current_position.d = 16b0000000000001000;   // current position
+        
+        overall_fsm.d = overall_fsm.IDLE;
+        
         
       overall_fsm.COMPLETE:
       //game is completed and all the map leds light up and come alive for celebration!
@@ -175,7 +177,7 @@ module mojo_top (
     
     case (instance_fsm.q) {
       instance_fsm.IDLE:
-        if (overall_fsm.q == overall_fsm.START_GAME) {
+        if (overall_fsm.q == overall_fsm.IDLE) { // wait for overall fsm to be done setting up
           // Wait for user to press any buttons.
           if (up_edge.out) // rising edge of up button detected
             instance_fsm.d = instance_fsm.UP_BTN_PRESSED;
@@ -194,6 +196,9 @@ module mojo_top (
           my_alu.alufn = Alufn.OR;
           io_led[1] = my_alu.out[15:8];
           io_led[0] = my_alu.out[7:0];
+          
+          // for debugging
+          io_led[2] = current_level.q; // display current level at the left more set of LEDs
         }
 
       instance_fsm.UP_BTN_PRESSED:
@@ -350,6 +355,7 @@ module mojo_top (
         
         current_level.d = my_alu.out[3:0]; // update the current level
         overall_fsm.d = overall_fsm.START_GAME; // begin new level
+        instance_fsm.d = instance_fsm.IDLE;
     }
   }
 }
