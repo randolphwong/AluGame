@@ -1,6 +1,11 @@
 /**************************************************************************************************
 
-   TODO: Fix bug where user cannot go down from top right corner.
+   TODO: 
+   1. Fix bug where user cannot go down from top right corner.
+   2. Fix bug where a reset at game level 4 may cause a glitch. (current position starts at a 
+      wrong place and also a wrong time limit.) - could it be that the position and time was taken 
+      from the previous level?
+       
      
 **************************************************************************************************/
 
@@ -79,6 +84,7 @@ module mojo_top (
 **************************************************************************************************/
       dff current_map[16];        // current map state, each bit represents a physical tile
       dff current_position[16];   // current position state, high bit represents current position
+      dff current_timelimit[6];   // time limit for the current level
       dff current_level[4](#INIT(1));   // current level state, ranging from level 1 to 15
       
       // FSM for a single game.
@@ -172,8 +178,9 @@ module mojo_top (
         
       game_fsm.INITIALISE_LEVEL:
         mlevel_ROM.level = current_level.q;
-        current_map.d = mlevel_ROM.map;        // hard coded map
-        current_position.d = mlevel_ROM.position;   // current position
+        current_map.d = mlevel_ROM.map;              // initialise map
+        current_position.d = mlevel_ROM.position;    // initialise starting position
+        current_timelimit.d = mlevel_ROM.time_limit; // set time limit
         
         timey.rst = 1;  // restart timing
         my_alu.in_a = timey.out;
@@ -205,9 +212,9 @@ module mojo_top (
           
           // for debugging
 //          io_led[2] = current_level.q; // display current level at the left more set of LEDs
-          io_led[2] = timey.out;
+          io_led[2] = timey.out - (60 - current_timelimit.q);
           // Player loses when time is up.
-          if (timey.out == 0) { // times up!
+          if (timey.out == (60 - current_timelimit.q)) { // times up!
             game_fsm.d = game_fsm.GAMEOVER;
           }
 

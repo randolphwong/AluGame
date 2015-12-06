@@ -1,45 +1,57 @@
 module level_ROM (
     input level[4],       // game level
-    output map[16],       // map for the particular game level
-    output position[16]   // starting position for the particular game level
+    output map[16],       // map
+    output position[16],   // starting position
+    output time_limit[6]  // time limit
   ) {
 
   always {
     
     map = 0;        // initialise map
     position = 0;   // initialise position
+    time_limit = 0; // initialise time limit
     
     case(level) {
       1:
         map = 16b0111011111010111;
         position = 16b0000000000001000;
+        time_limit = 60;
       2:
         map = 16b0000000000001100;
         position = 16b0000000000000010;
+        time_limit = 55;
       3:
         map = 16b1111111111111110;
         position = 16b0000000000000001;
+        time_limit = 50;
       4:
         map = 16b0000000000001100;
         position = 16b0000000000000010;
+        time_limit = 50;
       5:
         map = 16b0000000000001100;
         position = 16b0000000000000010;
+        time_limit = 45;
       6:
         map = 16b0000000000001100;
         position = 16b0000000000000010;
+        time_limit = 40;
       7:
         map = 16b0000000000001100;
         position = 16b0000000000000010;
+        time_limit = 40;
       8:
         map = 16b0000000000001100;
         position = 16b0000000000000010;
+        time_limit = 35;
       9:
         map = 16b0000000000001100;
         position = 16b0000000000000010;
+        time_limit = 35;
       10:
         map = 16b0000000000001100;
         position = 16b0000000000000010;
+        time_limit = 30;
     }
   }
 }
