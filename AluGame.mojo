@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="AluGame" board="Mojo V3" language="Lucid">
   <files>
+    <src>slow_clk.luc</src>
     <src>alu.luc</src>
     <src>timer.luc</src>
     <src>level_ROM.luc</src>
