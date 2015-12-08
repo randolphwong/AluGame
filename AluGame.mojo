@@ -5,10 +5,14 @@
     <src>alu.luc</src>
     <src>timer.luc</src>
     <src>level_ROM.luc</src>
+    <src>seven_seg.luc</src>
+    <src>multi_seven_seg.luc</src>
     <src top="true">mojo_top.luc</src>
-    <src>subset.luc</src>
+    <src>bin_to_bcd.luc</src>
     <src>blinker.luc</src>
+    <src>subset.luc</src>
     <ucf>mojo.ucf</ucf>
+    <component>decoder.luc</component>
     <component>reset_conditioner.luc</component>
     <component>pipeline.luc</component>
     <component>button_conditioner.luc</component>

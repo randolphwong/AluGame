@@ -142,6 +142,9 @@ module mojo_top (
   subset subset3;
   subset subset4;
   
+  bin_to_bcd my_bin_to_bcd;
+  
+  multi_seven_seg my_seven_seg(#DIGITS(2), .clk(clk), .rst(rst));
   dff counter[6](.clk(clk), .rst(rst));
     
   always {
@@ -219,6 +222,10 @@ module mojo_top (
     
     timey.rst = 0;
     
+    my_bin_to_bcd.a = 0;
+    
+    my_seven_seg.values = 2x{{4b0}};
+    
     case (game_fsm.q) {
       game_fsm.INIT:
         if (io_button[1]) { // center button pressed
@@ -280,9 +287,11 @@ module mojo_top (
                       my_alu.out[7:4],
                       my_alu.out[3:0]};
         
-        // for debugging
-//        io_led[2] = current_level.q; // display current level at the left more set of LEDs
-        io_led[2] = timey.out - (60 - current_timelimit.q);
+        // Display the count down timer on the 7 segment display
+        my_bin_to_bcd.a = timey.out - (60 - current_timelimit.q);
+        my_seven_seg.values = {my_bin_to_bcd.out1, my_bin_to_bcd.out0};
+        io_seg = ~my_seven_seg.seg;
+        io_sel = ~my_seven_seg.sel;
 
         // Check whether the time is up
         if (timey.out == (60 - current_timelimit.q)) { // time's up!
