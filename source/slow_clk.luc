@@ -1,14 +1,14 @@
-module slow_clk (
+module slow_clk #(DIV = 22 : DIV > 0)(
     input clk,  // clock
     input rst,  // reset
     output out // slowed down clock
   ) {
   
   edge_detector rising_edge(#RISE(1), #FALL(0), .clk(clk));
-  dff counter[23](.clk(clk), .rst(rst));
+  dff counter[DIV](.clk(clk), .rst(rst));
   
   always {
-    rising_edge.in = counter.q[22];
+    rising_edge.in = counter.q[DIV - 1];
     counter.d = counter.q + 1;
     out = rising_edge.out;
   }

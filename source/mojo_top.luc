@@ -99,8 +99,8 @@ module mojo_top (
       // current position to let the player know where they are at the moment.
       blinker blinky;
       
-      slow_clk s_clk;
-      fast_clk f_clk;
+      slow_clk s_clk(#DIV(23));
+      slow_clk f_clk;
     }
   }
   
