@@ -1,8 +1,7 @@
 /**************************************************************************************************
 
    TODO: 
-   1. Fix bug where user cannot go down from top right corner.
-   2. Fix bug where a reset at game level 4 may cause a glitch. (current position starts at a 
+   1. Fix bug where a reset at game level 4 may cause a glitch. (current position starts at a 
       wrong place and also a wrong time limit.) - could it be that the position and time was taken 
       from the previous level?
        
@@ -296,7 +295,7 @@ module mojo_top (
         // if current position is less than up_boundary.
         my_alu.in_a = current_position.q;
         my_alu.in_b = up_boundary;          // 0001 0000 0000 0000
-        my_alu.alufn = Alufn.LT;            // use < operator
+        my_alu.alufn = Alufn.ULT;            // use < operator
 
         if (my_alu.out)       // not a boundary case, proceed to move up
           game_fsm.d = game_fsm.GO_UP;
@@ -310,7 +309,7 @@ module mojo_top (
         // if current position is greater than down_boundary.
         my_alu.in_a = current_position.q;
         my_alu.in_b = down_boundary;        // 0000 0000 0000 1000
-        my_alu.alufn = Alufn.LE;            // use <= operator
+        my_alu.alufn = Alufn.ULE;            // use <= operator
         
         if (!my_alu.out)      // not a boundary case, proceed to move down
           game_fsm.d = game_fsm.GO_DOWN;

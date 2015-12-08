@@ -15,6 +15,8 @@ global Alufn {
   const EQ  = 6b110011;
   const LT  = 6b110101;
   const LE  = 6b110111;
+  const ULT  = 6b111101;
+  const ULE  = 6b111111;
 }
 
 module alu (
@@ -58,6 +60,10 @@ module alu (
         out = $signed(in_a) < $signed(in_b);
       Alufn.LE:
         out = $signed(in_a) <= $signed(in_b);
+      Alufn.ULT:
+        out = in_a < in_b;
+      Alufn.ULE:
+        out = in_a <= in_b;
     }
   }
 }
