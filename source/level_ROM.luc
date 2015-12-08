@@ -49,8 +49,8 @@ module level_ROM (
         position = 16b0000000000000010;
         time_limit = 35;
       10:
-        map = 16b0000000000001100;
-        position = 16b0000000000000010;
+        map = 16b0100110000100001;
+        position = 16b1000000000000000;
         time_limit = 30;
     }
   }
