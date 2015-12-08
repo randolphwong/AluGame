@@ -3,8 +3,9 @@
    TODO: 
    1. Fix bug where a reset at game level 4 may cause a glitch. (current position starts at a 
       wrong place and also a wrong time limit.) - could it be that the position and time was taken 
-      from the previous level?
+      from the previous level? (Bug cannot be reproduced anymore...)
    2. Update comment for up and down boundary.
+   3. Change the behaviour when player loses a level.
        
      
 **************************************************************************************************/
