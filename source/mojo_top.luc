@@ -30,6 +30,7 @@ module mojo_top (
   ) {
   
   sig rst;                  // reset signal
+  const MAX_LEVEL = 10;
   
   .clk(clk) {
     // The reset conditioner is used to synchronize the reset signal to the FPGA
@@ -90,8 +91,8 @@ module mojo_top (
       // FSM for a single game.
       fsm game_fsm = {INIT, INITIALISE_LEVEL, IDLE, LEFT_BTN_PRESSED, RIGHT_BTN_PRESSED, 
                           UP_BTN_PRESSED, DOWN_BTN_PRESSED, GO_LEFT, GO_RIGHT, GO_UP, GO_DOWN,
-                          CHECK_EMPTY_TILE, UPDATE_MAP, CHECK_ENDLEVEL, GAMEOVER, WIN,
-                          CHECK_ENDGAME, COMPLETE};
+                          CHECK_EMPTY_TILE, UPDATE_MAP, CHECK_ENDLEVEL, CHECK_GAMEOVER, WIN,
+                          GAMEOVER, CHECK_ENDGAME, COMPLETE};
       
       // The blinker employers a dff to count up. Output is high on half the count. This
       // produces a blinking effect on the output. We use this to blink the LED of the 
@@ -213,9 +214,10 @@ module mojo_top (
           // for debugging
 //          io_led[2] = current_level.q; // display current level at the left more set of LEDs
           io_led[2] = timey.out - (60 - current_timelimit.q);
-          // Player loses when time is up.
-          if (timey.out == (60 - current_timelimit.q)) { // times up!
-            game_fsm.d = game_fsm.GAMEOVER;
+
+          // Check whether the time is up
+          if (timey.out == (60 - current_timelimit.q)) { // time's up!
+            game_fsm.d = game_fsm.CHECK_GAMEOVER;
           }
 
       game_fsm.UP_BTN_PRESSED:
@@ -328,8 +330,6 @@ module mojo_top (
         else                  // current position is on a legit tile
           game_fsm.d = game_fsm.UPDATE_MAP;
         
-      
-        
       game_fsm.UPDATE_MAP:
         // Update the map, that is, delete the tile that the current position
         // is on. This is done by flipping the bit on the current map that 
@@ -354,6 +354,22 @@ module mojo_top (
         else                                    // not all tiles have been deleted
           game_fsm.d = game_fsm.IDLE;   // go back to idle to wait for user input
       
+      game_fsm.CHECK_GAMEOVER:
+        // Check if the game is over, or whether the the player has completed the game.
+        // Last level requires the player to not move at all in order to win.
+        if (current_level.q != MAX_LEVEL) // not yet at the last level
+          game_fsm.d = game_fsm.GAMEOVER; // player lost the current level
+        else { // player is at the last level
+          my_alu.in_a = current_map.q;
+          my_alu.in_b = mlevel_ROM.map;
+          my_alu.alufn = Alufn.EQ;      // current map == initial map
+          
+          if (my_alu.out)                         // player hasn't made any moves
+            game_fsm.d = game_fsm.COMPLETE;   // we have a champ!
+          else                                    // player made some moves
+            game_fsm.d = game_fsm.GAMEOVER;   // gameover...
+        }
+      
       game_fsm.GAMEOVER:
         // Player lost the level. Waits for user to press the center button 
         // to restart level.
@@ -370,7 +386,7 @@ module mojo_top (
         my_alu.alufn = Alufn.ADD;      // current level ++
         
         current_level.d = my_alu.out[3:0]; // update the current level
-        game_fsm.d = game_fsm.CHECK_ENDGAME; // begin new level
+        game_fsm.d = game_fsm.INITIALISE_LEVEL; // begin next level
         
       game_fsm.CHECK_ENDGAME:
         // Determine whether player has completed all levels. 
