@@ -164,10 +164,10 @@ module mojo_top (
     down_boundary = 16b0000000000001000;
     
     // Map current_map to led matrix
-    led_matrix = c{current_map.q[15:12], 
-                   current_map.q[11:8],
-                   current_map.q[7:4],
-                   current_map.q[3:0]};
+    led_matrix = {current_map.q[15:12], 
+                  current_map.q[11:8],
+                  current_map.q[7:4],
+                  current_map.q[3:0]};
 
     my_alu.in_a = 0;
     my_alu.in_b = 0;
@@ -214,10 +214,10 @@ module mojo_top (
           my_alu.in_a = current_map.q;
           my_alu.in_b = (current_position.q & 16x{blinky.blink});
           my_alu.alufn = Alufn.OR;
-          led_matrix = c{my_alu.out[15:12], 
-                         my_alu.out[11:8],
-                         my_alu.out[7:4],
-                         my_alu.out[3:0]};
+          led_matrix = {my_alu.out[15:12], 
+                        my_alu.out[11:8],
+                        my_alu.out[7:4],
+                        my_alu.out[3:0]};
           
           // for debugging
 //          io_led[2] = current_level.q; // display current level at the left more set of LEDs
@@ -409,8 +409,7 @@ module mojo_top (
       game_fsm.COMPLETE:
       //game is completed and all the map leds light up and come alive for celebration!
         io_led[2][7] = 1; // Right most LED lights up to signify a win in current level
-        io_led[1] = 8b11111111;
-        io_led[0] = 8b11111111;
+        led_matrix = 4x{{4hf}};
     }
 
     // map led_matrix on io_led
