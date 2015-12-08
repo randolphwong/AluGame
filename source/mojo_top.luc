@@ -4,6 +4,7 @@
    1. Fix bug where a reset at game level 4 may cause a glitch. (current position starts at a 
       wrong place and also a wrong time limit.) - could it be that the position and time was taken 
       from the previous level?
+   2. Update comment for up and down boundary.
        
      
 **************************************************************************************************/
@@ -173,8 +174,8 @@ module mojo_top (
     // Initialise boundary constants
     left_boundary = 16b0001000100010001;
     right_boundary = 16b1000100010001000;
-    up_boundary = 16b0001000000000000;
-    down_boundary = 16b0000000000001000;
+    up_boundary = 16b0000111111111111;
+    down_boundary = 16b0000000000001111;
     
 //    victory_screen1 = 16b0110111101101001;
 //    victory_screen2 = 16b1001100111110000;
@@ -294,8 +295,8 @@ module mojo_top (
         // Compare current position with up_boundary. It is a valid move 
         // if current position is less than up_boundary.
         my_alu.in_a = current_position.q;
-        my_alu.in_b = up_boundary;          // 0001 0000 0000 0000
-        my_alu.alufn = Alufn.ULT;            // use < operator
+        my_alu.in_b = up_boundary;          // 0000 1111 1111 1111
+        my_alu.alufn = Alufn.AND;
 
         if (my_alu.out)       // not a boundary case, proceed to move up
           game_fsm.d = game_fsm.GO_UP;
@@ -308,8 +309,8 @@ module mojo_top (
         // Compare current position with down_boundary. It is a valid move 
         // if current position is greater than down_boundary.
         my_alu.in_a = current_position.q;
-        my_alu.in_b = down_boundary;        // 0000 0000 0000 1000
-        my_alu.alufn = Alufn.ULE;            // use <= operator
+        my_alu.in_b = down_boundary;        // 0000 0000 0000 1111
+        my_alu.alufn = Alufn.AND;            // use <= operator
         
         if (!my_alu.out)      // not a boundary case, proceed to move down
           game_fsm.d = game_fsm.GO_DOWN;
