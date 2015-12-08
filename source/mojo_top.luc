@@ -87,7 +87,7 @@ module mojo_top (
       dff current_position[16];   // current position state, high bit represents current position
       dff current_timelimit[6];   // time limit for the current level
       dff current_level[4](#INIT(1));   // current level state, ranging from level 1 to 15
-      
+
       // FSM for a single game.
       fsm game_fsm = {INIT, INITIALISE_LEVEL, IDLE, LEFT_BTN_PRESSED, RIGHT_BTN_PRESSED, 
                           UP_BTN_PRESSED, DOWN_BTN_PRESSED, GO_LEFT, GO_RIGHT, GO_UP, GO_DOWN,
@@ -100,6 +100,7 @@ module mojo_top (
       blinker blinky;
       
       slow_clk s_clk;
+      fast_clk f_clk;
     }
   }
   
@@ -124,12 +125,24 @@ module mojo_top (
   sig down_boundary[16];    // 0000 0000 0000 1000
   sig left_boundary[16];    // 0001 0001 0001 0001
   sig right_boundary[16];   // 1000 1000 1000 1000
+  
+  sig victory_screen1[64];
+  sig victory_screen2[64];
+  sig victory_screen3[64];
+  sig victory_screen4[64];
 
   sig led_matrix[4][4];
   
   alu my_alu;
   
   level_ROM mlevel_ROM;
+  
+  subset subset1;
+  subset subset2;
+  subset subset3;
+  subset subset4;
+  
+  dff counter[6](.clk(clk), .rst(rst));
     
   always {
     reset_cond.in = ~rst_n; // input raw inverted reset signal
@@ -164,6 +177,21 @@ module mojo_top (
     up_boundary = 16b0001000000000000;
     down_boundary = 16b0000000000001000;
     
+//    victory_screen1 = 16b0110111101101001;
+//    victory_screen2 = 16b1001100111110000;
+//    victory_screen3 = 16b1001100111110000;
+//    victory_screen4 = 16b0110100101101001;
+    
+//    victory_screen1 = 16b0011001100011111;
+//    victory_screen2 = 16b0011001100000011;
+//    victory_screen3 = 16b0011001100001111;
+//    victory_screen4 = 16b0001111000000011;
+    
+    victory_screen1 = 64b0001100011000111111000110000000110000011001100001111000011001100;
+    victory_screen2 = 64b0001101111000001100000110001000110000011001100011001100001111000;
+    victory_screen3 = 64b0001111011000001100000011011101100000011001100011001100000110000;
+    victory_screen4 = 64b0001100011000111111000001110111000000001111000001111000000110000;
+    
     // Map current_map to led matrix
     led_matrix = {current_map.q[15:12], 
                   current_map.q[11:8],
@@ -175,6 +203,19 @@ module mojo_top (
     my_alu.alufn = 0;
     
     mlevel_ROM.level = 0;
+    
+    subset1.index = 0;
+    subset1.set = 0;
+    
+    subset2.index = 0;
+    subset2.set = 0;
+    
+    subset3.index = 0;
+    subset3.set = 0;
+    
+    subset4.index = 0;
+    subset4.set = 0;
+    
     
     timey.rst = 0;
     
@@ -201,7 +242,7 @@ module mojo_top (
         my_alu.in_b = 1;
         my_alu.alufn = Alufn.SRA;
 
-        if (s_clk.out)
+        if (f_clk.out)
           current_position.d = my_alu.out;
 
         if ((timey.out == 60) && (current_position.q == 16hffff)) {
@@ -430,7 +471,23 @@ module mojo_top (
       game_fsm.COMPLETE:
       //game is completed and all the map leds light up and come alive for celebration!
         io_led[2][7] = 1; // Right most LED lights up to signify a win in current level
-        led_matrix = 4x{{4hf}};
+        
+        subset1.set = victory_screen1;
+        subset1.index = counter.q;
+        
+        subset2.set = victory_screen2;
+        subset2.index = counter.q;
+        
+        subset3.set = victory_screen3;
+        subset3.index = counter.q;
+        
+        subset4.set = victory_screen4;
+        subset4.index = counter.q;
+        
+        if (s_clk.out)
+          counter.d = counter.q + 1;
+        
+        led_matrix = {subset1.out, subset2.out, subset3.out, subset4.out};
     }
 
     // map led_matrix on io_led

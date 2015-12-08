@@ -6,6 +6,8 @@
     <src>timer.luc</src>
     <src>level_ROM.luc</src>
     <src top="true">mojo_top.luc</src>
+    <src>fast_clk.luc</src>
+    <src>subset.luc</src>
     <src>blinker.luc</src>
     <ucf>mojo.ucf</ucf>
     <component>reset_conditioner.luc</component>

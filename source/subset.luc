@@ -1,0 +1,13 @@
+module subset (
+    input set[64],
+    input index[6],
+    output out[4]
+  ) {
+
+  always {
+    out[0] = set[index];
+    out[1] = set[index + 1];
+    out[2] = set[index + 2];
+    out[3] = set[index + 3];
+  }
+}
