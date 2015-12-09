@@ -257,7 +257,8 @@ module mojo_top (
         if (f_clk.out)
           current_position.d = my_alu.out;
 
-        if ((timey.out == 60) && (current_position.q == 16hffff)) {
+//        if ((timey.out == 60) && (current_position.q == 16hffff)) {
+        if ((timey.out == 60) && (current_position.q == 0)) {
           mlevel_ROM.level = current_level.q;
           current_position.d = mlevel_ROM.position;
           game_fsm.d = game_fsm.IDLE;

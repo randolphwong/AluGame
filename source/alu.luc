@@ -18,10 +18,10 @@ global Alufn {
 }
 
 module alu (
-    input in_a[16],
-    input in_b[16],
+    input in_a[64],
+    input in_b[64],
     input alufn[6],
-    output out[16]
+    output out[64]
   ) {
   
   always {
@@ -43,15 +43,15 @@ module alu (
       Alufn.LDR:
         out = in_a;
       Alufn.SHL:
-        out = in_a << in_b[3:0];
+        out = in_a << in_b[5:0];
       Alufn.SHR:
-        out = in_a >> in_b[3:0];
+        out = in_a >> in_b[5:0];
       Alufn.SRA:
         out = $signed(in_a) >>> in_b[3:0];
       Alufn.ROL:
-        out = ((in_a << in_b[3:0]) & 16hFFFF) | ((in_a & 16hFFFF) >> (16 - in_b[3:0]));
+        out = ((in_a << in_b[5:0]) & 64hFFFFFFFFFFFFFFFF) | ((in_a & 64hFFFFFFFFFFFFFFFF) >> (64 - in_b[5:0]));
       Alufn.ROR:
-        out = ((in_a & 16hFF) >> in_b[3:0]) | ((in_a << (16 - in_b[3:0])) & 16hFF);
+        out = ((in_a & 64hFFFFFFFFFFFFFFFF) >> in_b[5:0]) | ((in_a << (16 - in_b[5:0])) & 64hFFFFFFFFFFFFFFFF);
       Alufn.EQ:
         out = in_a == in_b;
       Alufn.LT:
