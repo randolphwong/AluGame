@@ -84,8 +84,8 @@ module mojo_top (
     correspond to the same grids as in the map.
      
 **************************************************************************************************/
-      dff current_map[16];        // current map state, each bit represents a physical tile
-      dff current_position[16];   // current position state, high bit represents current position
+      dff current_map[64];        // current map state, each bit represents a physical tile
+      dff current_position[64];   // current position state, high bit represents current position
       dff current_timelimit[6];   // time limit for the current level
       dff current_level[4](#INIT(1));   // current level state, ranging from level 1 to 15
 
@@ -124,17 +124,17 @@ module mojo_top (
      the right.
      
 **************************************************************************************************/
-  sig up_boundary[16];      // 0001 0000 0000 0000
-  sig down_boundary[16];    // 0000 0000 0000 1000
-  sig left_boundary[16];    // 0001 0001 0001 0001
-  sig right_boundary[16];   // 1000 1000 1000 1000
+  sig up_boundary[64];      // 0001 0000 0000 0000
+  sig down_boundary[64];    // 0000 0000 0000 1000
+  sig left_boundary[64];    // 0001 0001 0001 0001
+  sig right_boundary[64];   // 1000 1000 1000 1000
   
   sig victory_screen1[64];
   sig victory_screen2[64];
   sig victory_screen3[64];
   sig victory_screen4[64];
 
-  sig led_matrix[4][4];
+  sig led_matrix[8][8];
   
   alu my_alu;
   
@@ -163,7 +163,7 @@ module mojo_top (
     io_seg = 8hff;          // turn segments off
     io_sel = 4hf;           // select no digits
 
-    led_matrix = 4x{{4b0}};
+    led_matrix = 8x{{8b0}};
     
     button_up_cond.in = io_button[0];      // synchronise up button press
     up_edge.in = button_up_cond.out;       // get edge detection from sychonised button press
@@ -178,10 +178,15 @@ module mojo_top (
     right_edge.in = button_right_cond.out; // get edge detection from sychonised button press
     
     // Initialise boundary constants
-    left_boundary = 16b0001000100010001;
-    right_boundary = 16b1000100010001000;
-    up_boundary = 16b0000111111111111;
-    down_boundary = 16b0000000000001111;
+//    left_boundary = 16b0000000100000001;
+//    right_boundary = 16b1000100010001000;
+//    up_boundary = 16b0000111111111111;
+//    down_boundary = 16b0000000000001111;
+    
+    left_boundary = 64h0101010101010101;
+    right_boundary = 64h8080808080808080;
+    up_boundary = 64h00ffffffffffffff;
+    down_boundary = 64h00000000000000ff;
     
 //    victory_screen1 = 16b0110111101101001;
 //    victory_screen2 = 16b1001100111110000;
@@ -199,10 +204,14 @@ module mojo_top (
     victory_screen4 = 64b0001100011000111111000001110111000000001111000001111000000110000;
     
     // Map current_map to led matrix
-    led_matrix = {current_map.q[15:12], 
-                  current_map.q[11:8],
-                  current_map.q[7:4],
-                  current_map.q[3:0]};
+    led_matrix = {current_map.q[63-:8], 
+                  current_map.q[55-:8],
+                  current_map.q[47-:8],
+                  current_map.q[39-:8],
+                  current_map.q[31-:8],
+                  current_map.q[23-:8],
+                  current_map.q[15-:8],
+                  current_map.q[7-:8]};
 
     my_alu.in_a = 0;
     my_alu.in_b = 0;
@@ -229,7 +238,7 @@ module mojo_top (
     
     my_seven_seg.values = 2x{{4b0}};
     
-    matrix.values = 4x{{4b0}};
+    matrix.values = 8x{{8b0}};
     
     case (game_fsm.q) {
       game_fsm.INIT:
@@ -244,7 +253,7 @@ module mojo_top (
 
         // Here we use the current_position register as a placeholder to perform the
         // load screen.
-        current_position.d = 16h8000;                
+        current_position.d = 64h8000000000000000;
         game_fsm.d = game_fsm.LOAD_SCREEN;
 
       game_fsm.LOAD_SCREEN:
@@ -257,18 +266,22 @@ module mojo_top (
         if (f_clk.out)
           current_position.d = my_alu.out;
 
-//        if ((timey.out == 60) && (current_position.q == 16hffff)) {
-        if ((timey.out == 60) && (current_position.q == 0)) {
+        if ((timey.out == 60) && (current_position.q == 64hffffffffffffffff)) {
+//        if ((timey.out == 60) && (current_position.q == 0)) {
           mlevel_ROM.level = current_level.q;
           current_position.d = mlevel_ROM.position;
           game_fsm.d = game_fsm.IDLE;
         }
 
         // Map load screen onto the led matrix
-        led_matrix = {current_position.q[15:12], 
-                      current_position.q[11:8],
-                      current_position.q[7:4],
-                      current_position.q[3:0]};
+        led_matrix = {current_position.q[63-:8], 
+                      current_position.q[55-:8],
+                      current_position.q[47-:8],
+                      current_position.q[39-:8],
+                      current_position.q[31-:8],
+                      current_position.q[23-:8],
+                      current_position.q[15-:8],
+                      current_position.q[7-:8]};
           
         
       game_fsm.IDLE:
@@ -286,12 +299,17 @@ module mojo_top (
         // Also make the current position more obvious by blinking the corresponding LED.
         // To do this, set io_led[1:0] = current map | (current position & blink state).
         my_alu.in_a = current_map.q;
-        my_alu.in_b = (current_position.q & 16x{blinky.blink});
+        my_alu.in_b = (current_position.q & 64x{blinky.blink});
         my_alu.alufn = Alufn.OR;
-        led_matrix = {my_alu.out[15:12], 
-                      my_alu.out[11:8],
-                      my_alu.out[7:4],
-                      my_alu.out[3:0]};
+     
+        led_matrix = {my_alu.out[63-:8], 
+                      my_alu.out[55-:8],
+                      my_alu.out[47-:8],
+                      my_alu.out[39-:8],
+                      my_alu.out[31-:8],
+                      my_alu.out[23-:8],
+                      my_alu.out[15-:8],
+                      my_alu.out[7-:8]};
         
         // Display the count down timer on the 7 segment display
         my_bin_to_bcd.a = timey.out - (60 - current_timelimit.q);
@@ -364,7 +382,7 @@ module mojo_top (
         // Move current position to the tile above.
         // This is done by shifting current position to the left by 4.
         my_alu.in_a = current_position.q;
-        my_alu.in_b = 4;                    // shift left by 4
+        my_alu.in_b = 8;                    // shift left by 4
         my_alu.alufn = Alufn.SHL;
         
         current_position.d = my_alu.out;
@@ -374,7 +392,7 @@ module mojo_top (
         // Move current position to the tile below.
         // This is done by shifting current position to the right by 4.
         my_alu.in_a = current_position.q;
-        my_alu.in_b = 4;                    // shift right by 4
+        my_alu.in_b = 8;                    // shift right by 4
         my_alu.alufn = Alufn.SHR;
         
         current_position.d = my_alu.out;
@@ -502,7 +520,8 @@ module mojo_top (
         if (s_clk.out)
           counter.d = counter.q + 1;
         
-        led_matrix = {subset1.out, subset2.out, subset3.out, subset4.out};
+        //led_matrix = {subset1.out, subset2.out, subset3.out, subset4.out};
+        led_matrix = 8x{{8hff}};
     }
 
     // map led_matrix on io_led

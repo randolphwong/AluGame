@@ -1,11 +1,11 @@
 module array_to_matrix #(
-    DIGITS = 4 : DIGITS > 0,
+    DIGITS = 8 : DIGITS > 0,
     DIV = 16 : DIV >= 0
   )(
     input clk,                // clock
     input rst,                // reset
-    input values [DIGITS][4], // values to show
-    output col_sel [4],           // LED segments
+    input values [DIGITS][8], // values to show
+    output col_sel [8],           // LED segments
     output row_sel [DIGITS]       // Digit select
   ) {
  
