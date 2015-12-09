@@ -102,6 +102,8 @@ module mojo_top (
       
       slow_clk s_clk(#DIV(23));
       slow_clk f_clk;
+      
+      array_to_matrix matrix;
     }
   }
   
@@ -226,6 +228,8 @@ module mojo_top (
     my_bin_to_bcd.a = 0;
     
     my_seven_seg.values = 2x{{4b0}};
+    
+    matrix.values = 4x{{4b0}};
     
     case (game_fsm.q) {
       game_fsm.INIT:
@@ -501,7 +505,11 @@ module mojo_top (
     }
 
     // map led_matrix on io_led
-    io_led[1] = c{led_matrix[3], led_matrix[2]};
-    io_led[0] = c{led_matrix[1], led_matrix[0]};
+//    io_led[1] = c{led_matrix[3], led_matrix[2]};
+//    io_led[0] = c{led_matrix[1], led_matrix[0]};
+    
+    matrix.values = led_matrix;
+    io_led[1] = matrix.row_sel;
+    io_led[0] = ~matrix.col_sel;
   }
 }

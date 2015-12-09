@@ -1,0 +1,27 @@
+module array_to_matrix #(
+    DIGITS = 4 : DIGITS > 0,
+    DIV = 16 : DIV >= 0
+  )(
+    input clk,                // clock
+    input rst,                // reset
+    input values [DIGITS][4], // values to show
+    output col_sel [4],           // LED segments
+    output row_sel [DIGITS]       // Digit select
+  ) {
+ 
+  // number of bits required to store DIGITS-1
+  const DIGIT_BITS = $clog2(DIGITS);
+ 
+  .clk(clk), .rst(rst) {
+    counter ctr (#DIV(DIV), #SIZE(DIGIT_BITS), #TOP(DIGITS-1));
+  }
+ 
+  decoder digit_dec (#WIDTH(DIGIT_BITS)); // digit decoder
+ 
+  always {
+    col_sel = values[ctr.value];                   // output the decoded value
+ 
+    digit_dec.in = ctr.value;             // decode active digit to one-hot
+    row_sel = digit_dec.out;                  // output the active digit
+  }
+}
