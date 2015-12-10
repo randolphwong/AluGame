@@ -84,7 +84,7 @@ module mojo_top (
       fsm game_fsm = {INIT, INITIALISE_LEVEL, IDLE, LEFT_BTN_PRESSED, RIGHT_BTN_PRESSED, 
                           UP_BTN_PRESSED, DOWN_BTN_PRESSED, GO_LEFT, GO_RIGHT, GO_UP, GO_DOWN,
                           CHECK_EMPTY_TILE, UPDATE_MAP, CHECK_ENDLEVEL, CHECK_GAMEOVER, WIN,
-                          GAMEOVER, CHECK_ENDGAME, COMPLETE, LOAD_SCREEN};
+                          GAMEOVER, COMPLETE, LOAD_SCREEN};
       
       // The blinker employs a dff to count up. Output is high on half the count. This
       // produces a blinking effect on the output. We use this to blink the LED of the 
@@ -123,8 +123,6 @@ module mojo_top (
 
   sig victory_screen[8][64];
 
-  sig led_matrix[8][8];
-  
   alu my_alu;
   
   level_ROM mlevel_ROM;
@@ -145,8 +143,6 @@ module mojo_top (
     io_led = 3x{{8h00}};    // turn LEDs off
     io_seg = 8hff;          // turn segments off
 
-    led_matrix = 8x{{8b0}};
-    
     io_led[2] = 8hff;
     
     always_high = 2b11;     // simulate vdd, since we don't have enough vdd pins
@@ -184,7 +180,7 @@ module mojo_top (
     my_scroller.screen = victory_screen;
     
     // Map current_map to led matrix
-    led_matrix = {current_map.q[63-:8], 
+    matrix.value = {current_map.q[63-:8], 
                   current_map.q[55-:8],
                   current_map.q[47-:8],
                   current_map.q[39-:8],
@@ -193,28 +189,27 @@ module mojo_top (
                   current_map.q[15-:8],
                   current_map.q[7-:8]};
 
+    // Set default values
     my_alu.in_a = 0;
     my_alu.in_b = 0;
     my_alu.alufn = 0;
-    
     mlevel_ROM.level = 0;
-    
     timey.rst = 0;
-    
     my_bin_to_bcd.a = 0;
-    
     my_seven_seg.values = 2x{{4b0}};
     
-    matrix.values = 8x{{8b0}};
-    
+    // Game FSM
     case (game_fsm.q) {
       game_fsm.INIT:
+        // Nothing happens at all except it wait for user to press then center
+        // button to begin a new game.
         if (reset_edge.out) { // center button pressed
-          game_fsm.d = game_fsm.INITIALISE_LEVEL;
+          game_fsm.d = game_fsm.INITIALISE_LEVEL; // initialise a new level
         }
         
       game_fsm.INITIALISE_LEVEL:
-        mlevel_ROM.level = current_level.q;
+        // Preload the respective state registers with the data from the ROM.
+        mlevel_ROM.level = current_level.q;          // set current level as input to ROM
         current_map.d = mlevel_ROM.map;              // initialise map
         current_timelimit.d = mlevel_ROM.time_limit; // set time limit
 
@@ -224,24 +219,31 @@ module mojo_top (
         game_fsm.d = game_fsm.LOAD_SCREEN;
 
       game_fsm.LOAD_SCREEN:
-        timey.rst = 1;  // restart timing
+        // Display a loading screen, where the tile starting from the upper right 
+        // corner will begin lighting up, all the way down to the lower left
+        // corner of the LED matrix.
 
-        my_alu.in_a = current_position.q;
-        my_alu.in_b = 1;
-        my_alu.alufn = Alufn.SRA;
+        timey.rst = 1;  // reset the countdown timer
 
+        // Using current_position as a placeholder for the load screen value, we
+        // clear the register and toggle the MSB. Next we perform an arithmetic
+        // right shift by one, until every bit of the register is 1. 
+        my_alu.in_a = current_position.q;   // place holder for the load screen
+        my_alu.in_b = 1;                    
+        my_alu.alufn = Alufn.SRA;           // arithmetic shift right by 1
+
+        // Use a slower clock to update the register.
         if (s_clk.out)
-          current_position.d = my_alu.out;
+          current_position.d = my_alu.out; // update the load screen placeholder
 
-        if ((timey.out == 60) && (current_position.q == 64hffffffffffffffff)) {
-//        if ((timey.out == 60) && (current_position.q == 0)) {
-          mlevel_ROM.level = current_level.q;
-          current_position.d = mlevel_ROM.position;
-          game_fsm.d = game_fsm.IDLE;
+        if ((timey.out == 60) && (current_position.q == 64hffffffffffffffff)) { // done loading
+          mlevel_ROM.level = current_level.q; // set current level as input to ROM
+          current_position.d = mlevel_ROM.position; // initialise the correct starting position
+          game_fsm.d = game_fsm.IDLE; // begin the game
         }
 
-        // Map load screen onto the led matrix
-        led_matrix = {current_position.q[63-:8], 
+        // Map the load screen onto the led matrix
+        matrix.value = {current_position.q[63-:8], 
                       current_position.q[55-:8],
                       current_position.q[47-:8],
                       current_position.q[39-:8],
@@ -264,14 +266,15 @@ module mojo_top (
         if (right_edge.out) // rising edge of right button detected
           game_fsm.d = game_fsm.RIGHT_BTN_PRESSED;
         
-        // Display the current state of map onto the IO Shield LEDs.
+        // Display the current state of map onto the LED matrix.
         // Also make the current position more obvious by blinking the corresponding LED.
-        // To do this, set io_led[1:0] = current map | (current position & blink state).
+        // To do this, set matrix.value = current map | (current position & blink state).
         my_alu.in_a = current_map.q;
         my_alu.in_b = (current_position.q & 64x{blinky.blink});
         my_alu.alufn = Alufn.OR;
      
-        led_matrix = {my_alu.out[63-:8], 
+        // Map the output of the ALU onto the led matrix
+        matrix.value = {my_alu.out[63-:8], 
                       my_alu.out[55-:8],
                       my_alu.out[47-:8],
                       my_alu.out[39-:8],
@@ -280,15 +283,19 @@ module mojo_top (
                       my_alu.out[15-:8],
                       my_alu.out[7-:8]};
         
-        // Display the count down timer on the 7 segment display
-        my_bin_to_bcd.a = timey.out - (60 - current_timelimit.q);
-        my_seven_seg.values = {my_bin_to_bcd.out1, my_bin_to_bcd.out0};
-        io_seg = ~my_seven_seg.seg0;
-        io_led[2] = ~my_seven_seg.seg1;
+        // Display the countdown timer on the 7 segment display. The timing is
+        // readjusted to the correct time limit for the current level.
+        my_bin_to_bcd.a = timey.out - (60 - current_timelimit.q); // convert binary to BCD
+        my_seven_seg.values = {my_bin_to_bcd.out1, my_bin_to_bcd.out0}; // convert BCD to 7seg
+
+        // The respective 7 segment bits are connected to cathode of LED, hence 
+        // active low. Seg0 is the first base ten digit while seg1 is the second.
+        io_seg = ~my_seven_seg.seg0; 
+        io_led[2] = ~my_seven_seg.seg1; // connects to cathode of LED, hence active low
         
         // Check whether the time is up
         if (timey.out == (60 - current_timelimit.q)) { // time's up!
-          game_fsm.d = game_fsm.CHECK_GAMEOVER;
+          game_fsm.d = game_fsm.CHECK_GAMEOVER; // check if game is truly over
         }
 
       game_fsm.UP_BTN_PRESSED:
@@ -443,18 +450,19 @@ module mojo_top (
         }
       
       game_fsm.GAMEOVER:
-        // Player lost the level. Waits for user to press the center button 
-        // to restart level.
-//        io_led[2][6] = 1;   // second right most LED lights up to signify game over
-        if (reset_edge.out)  { //if center button is pressed
-            game_fsm.d = game_fsm.INITIALISE_LEVEL;
+        // Player lost the level. Set the current position LED solid and blink
+        // the map. This is to make it more obvious to the player that he/she made
+        // the wrong move.
+        if (reset_edge.out)  { // if center button is pressed
+            game_fsm.d = game_fsm.INITIALISE_LEVEL; // preload a new level
         }
         
         my_alu.in_a = current_position.q;
         my_alu.in_b = (64x{blinky.blink} & current_map.q);
         my_alu.alufn = Alufn.OR;
      
-        led_matrix = {my_alu.out[63-:8], 
+        // Map the output of the ALU onto the led matrix
+        matrix.value = {my_alu.out[63-:8], 
                       my_alu.out[55-:8],
                       my_alu.out[47-:8],
                       my_alu.out[39-:8],
@@ -473,24 +481,16 @@ module mojo_top (
         current_level.d = my_alu.out[3:0]; // update the current level
         game_fsm.d = game_fsm.INITIALISE_LEVEL; // begin next level
         
-      game_fsm.CHECK_ENDGAME:
-        // Determine whether player has completed all levels. 
-        my_alu.in_a = current_level.q;
-        my_alu.in_b = 10;
-        my_alu.alufn = Alufn.LT;      // use < operator
-        if (my_alu.out) // not yet complete
-          game_fsm.d = game_fsm.INITIALISE_LEVEL;
-        else            // game completed
-          game_fsm.d = game_fsm.COMPLETE;
-        
       game_fsm.COMPLETE:
-        //game is completed and all the map leds light up and come alive for celebration!
-        led_matrix = my_scroller.out;
+        // Game is completed and all the map leds light up and come alive for celebration!
+        matrix.value = my_scroller.out;
     }
 
-    // Use the scroller module to get the respective row and col select
-    matrix.values = led_matrix;
-    io_led[1] = matrix.row_sel;
-    io_led[0] = ~matrix.col_sel;
+    // The row pins of the LED matrix are connected to the anode side of LED. Hence
+    // a high signal would turn on the specified row. The column pins, on the other
+    // hand, are connected to the cathode side of LED. Hence a low signal would turn
+    // on the specified column.
+    io_led[1] = matrix.row_sel; // connect the 8 bit row selector to io_led[1]
+    io_led[0] = ~matrix.col_sel; // connect the inverse 8 bit col selector to io_led[0]
   }
 }
