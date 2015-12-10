@@ -44,6 +44,7 @@ module mojo_top (
     button_conditioner button_down_cond;
     button_conditioner button_left_cond;
     button_conditioner button_right_cond;
+    button_conditioner button_reset_cond;
     
     // The edge detector will detect when there is an edge on a button press and will
     // set the output high for that clock cycle.
@@ -51,6 +52,8 @@ module mojo_top (
     edge_detector down_edge(#RISE(1), #FALL(0));
     edge_detector left_edge(#RISE(1), #FALL(0));
     edge_detector right_edge(#RISE(1), #FALL(0));
+    edge_detector reset_edge(#RISE(1), #FALL(0));
+    
     
     timer timey;
     
@@ -104,6 +107,8 @@ module mojo_top (
       slow_clk f_clk;
       
       array_to_matrix matrix;
+      
+      scroller my_scroller;
     }
   }
   
@@ -124,15 +129,12 @@ module mojo_top (
      the right.
      
 **************************************************************************************************/
-  sig up_boundary[64];      // 0001 0000 0000 0000
-  sig down_boundary[64];    // 0000 0000 0000 1000
-  sig left_boundary[64];    // 0001 0001 0001 0001
-  sig right_boundary[64];   // 1000 1000 1000 1000
-  
-  sig victory_screen1[64];
-  sig victory_screen2[64];
-  sig victory_screen3[64];
-  sig victory_screen4[64];
+  sig up_boundary[64];      // 00000000 111111111 ... 111111111
+  sig down_boundary[64];    // 00000000 ... 00000000 111111111
+  sig left_boundary[64];    // 00000001 ... 00000001
+  sig right_boundary[64];   // 10000000 ... 10000000
+
+  sig victory_screen[8][64];
 
   sig led_matrix[8][8];
   
@@ -140,15 +142,9 @@ module mojo_top (
   
   level_ROM mlevel_ROM;
   
-  subset subset1;
-  subset subset2;
-  subset subset3;
-  subset subset4;
-  
   bin_to_bcd my_bin_to_bcd;
   
   multi_seven_seg my_seven_seg;
-  dff counter[6](.clk(clk), .rst(rst));
     
   always {
     reset_cond.in = ~rst_n; // input raw inverted reset signal
@@ -171,6 +167,9 @@ module mojo_top (
     button_up_cond.in = io_button[0];      // synchronise up button press
     up_edge.in = button_up_cond.out;       // get edge detection from sychonised button press
     
+    button_reset_cond.in = io_button[1];   // synchronise right button press
+    reset_edge.in = button_reset_cond.out; // get edge detection from sychonised button press
+    
     button_down_cond.in = io_button[2];    // synchronise down button press
     down_edge.in = button_down_cond.out;   // get edge detection from sychonised button press
     
@@ -181,30 +180,21 @@ module mojo_top (
     right_edge.in = button_right_cond.out; // get edge detection from sychonised button press
     
     // Initialise boundary constants
-//    left_boundary = 16b0000000100000001;
-//    right_boundary = 16b1000100010001000;
-//    up_boundary = 16b0000111111111111;
-//    down_boundary = 16b0000000000001111;
-    
     left_boundary = 64h0101010101010101;
     right_boundary = 64h8080808080808080;
     up_boundary = 64h00ffffffffffffff;
     down_boundary = 64h00000000000000ff;
     
-//    victory_screen1 = 16b0110111101101001;
-//    victory_screen2 = 16b1001100111110000;
-//    victory_screen3 = 16b1001100111110000;
-//    victory_screen4 = 16b0110100101101001;
-    
-//    victory_screen1 = 16b0011001100011111;
-//    victory_screen2 = 16b0011001100000011;
-//    victory_screen3 = 16b0011001100001111;
-//    victory_screen4 = 16b0001111000000011;
-    
-    victory_screen1 = 64b0001100011000111111000110000000110000011001100001111000011001100;
-    victory_screen2 = 64b0001101111000001100000110001000110000011001100011001100001111000;
-    victory_screen3 = 64b0001111011000001100000011011101100000011001100011001100000110000;
-    victory_screen4 = 64b0001100011000111111000001110111000000001111000001111000000110000;
+    victory_screen[0] = 64b0000000000000000000000000000000000000000000000000000000000000000;
+    victory_screen[1] = 64b0000000000000010000100011100100000000010010000100001100001000100;
+    victory_screen[2] = 64b0000000000000010001100001000010000000100010000100010010000101000;
+    victory_screen[3] = 64b0000000000000010010100001000010000000100010000100100001000010000;
+    victory_screen[4] = 64b0000000000000010100100001000001001001000010000100100001000010000;
+    victory_screen[5] = 64b0000000000000011000100001000001010101000001001000010010000010000;
+    victory_screen[6] = 64b0000000000000010000100011100000100010000000110000001100000010000;
+    victory_screen[7] = 64b0000000000000000000000000000000000000000000000000000000000000000;
+
+    my_scroller.screen = victory_screen;
     
     // Map current_map to led matrix
     led_matrix = {current_map.q[63-:8], 
@@ -222,19 +212,6 @@ module mojo_top (
     
     mlevel_ROM.level = 0;
     
-    subset1.index = 0;
-    subset1.set = 0;
-    
-    subset2.index = 0;
-    subset2.set = 0;
-    
-    subset3.index = 0;
-    subset3.set = 0;
-    
-    subset4.index = 0;
-    subset4.set = 0;
-    
-    
     timey.rst = 0;
     
     my_bin_to_bcd.a = 0;
@@ -245,7 +222,7 @@ module mojo_top (
     
     case (game_fsm.q) {
       game_fsm.INIT:
-        if (io_button[1]) { // center button pressed
+        if (reset_edge.out) { // center button pressed
           game_fsm.d = game_fsm.INITIALISE_LEVEL;
         }
         
@@ -289,6 +266,8 @@ module mojo_top (
         
       game_fsm.IDLE:
         // Wait for user to press any buttons.
+        if (reset_edge.out) //if center button is pressed
+            game_fsm.d = game_fsm.INITIALISE_LEVEL;
         if (up_edge.out) // rising edge of up button detected
           game_fsm.d = game_fsm.UP_BTN_PRESSED;
         if (down_edge.out) // rising edge of down button detected
@@ -480,7 +459,7 @@ module mojo_top (
         // Player lost the level. Waits for user to press the center button 
         // to restart level.
 //        io_led[2][6] = 1;   // second right most LED lights up to signify game over
-        if (io_button[1])  { //if center button is pressed
+        if (reset_edge.out)  { //if center button is pressed
             game_fsm.d = game_fsm.INITIALISE_LEVEL;
         }
         
@@ -519,25 +498,8 @@ module mojo_top (
         
       game_fsm.COMPLETE:
       //game is completed and all the map leds light up and come alive for celebration!
-//        io_led[2][7] = 1; // Right most LED lights up to signify a win in current level
-        
-        subset1.set = victory_screen1;
-        subset1.index = counter.q;
-        
-        subset2.set = victory_screen2;
-        subset2.index = counter.q;
-        
-        subset3.set = victory_screen3;
-        subset3.index = counter.q;
-        
-        subset4.set = victory_screen4;
-        subset4.index = counter.q;
-        
-        if (s_clk.out)
-          counter.d = counter.q + 1;
-        
-        //led_matrix = {subset1.out, subset2.out, subset3.out, subset4.out};
-        led_matrix = 8x{{8hff}};
+
+        led_matrix = my_scroller.out;
     }
 
     // map led_matrix on io_led

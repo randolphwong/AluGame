@@ -1,7 +1,7 @@
 module subset (
     input set[64],
     input index[6],
-    output out[4]
+    output out[8]
   ) {
 
   always {
@@ -9,5 +9,9 @@ module subset (
     out[1] = set[index + 1];
     out[2] = set[index + 2];
     out[3] = set[index + 3];
+    out[4] = set[index + 4];
+    out[5] = set[index + 5];
+    out[6] = set[index + 6];
+    out[7] = set[index + 7];
   }
 }

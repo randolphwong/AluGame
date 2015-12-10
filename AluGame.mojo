@@ -9,6 +9,7 @@
     <src>array_to_matrix.luc</src>
     <src>multi_seven_seg.luc</src>
     <src top="true">mojo_top.luc</src>
+    <src>scroller.luc</src>
     <src>bin_to_bcd.luc</src>
     <src>blinker.luc</src>
     <src>subset.luc</src>

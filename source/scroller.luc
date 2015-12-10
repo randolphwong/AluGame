@@ -1,0 +1,84 @@
+module scroller 
+#(WIDTH = 64 : WIDTH > 0)(
+    input clk,  // clock
+    input rst,  // reset
+    input screen[8][WIDTH],
+    output out[8][8]
+  ) {
+  
+  subset subset1;
+  subset subset2;
+  subset subset3;
+  subset subset4;
+  subset subset5;
+  subset subset6;
+  subset subset7;
+  subset subset8;
+  
+  slow_clk s_clk(#DIV(23), .clk(clk), .rst(rst));
+  dff counter[$clog2(WIDTH)](.clk(clk), .rst(rst));
+
+  always {
+
+    subset1.index = 0;
+    subset1.set = 0;
+    
+    subset2.index = 0;
+    subset2.set = 0;
+    
+    subset3.index = 0;
+    subset3.set = 0;
+    
+    subset4.index = 0;
+    subset4.set = 0;
+    
+    subset5.index = 0;
+    subset5.set = 0;
+    
+    subset6.index = 0;
+    subset6.set = 0;
+    
+    subset7.index = 0;
+    subset7.set = 0;
+    
+    subset8.index = 0;
+    subset8.set = 0;
+    
+    subset1.set = screen[0];
+    subset1.index = counter.q;
+    
+    subset2.set = screen[1];
+    subset2.index = counter.q;
+    
+    subset3.set = screen[2];
+    subset3.index = counter.q;
+    
+    subset4.set = screen[3];
+    subset4.index = counter.q;
+
+    subset5.set = screen[4];
+    subset5.index = counter.q;
+    
+    subset6.set = screen[5];
+    subset6.index = counter.q;
+    
+    subset7.set = screen[6];
+    subset7.index = counter.q;
+    
+    subset8.set = screen[7];
+    subset8.index = counter.q;
+    
+    if (s_clk.out)
+          counter.d = counter.q + 1;
+    
+    out = {subset1.out,
+           subset2.out,
+ 	         subset3.out,
+	         subset4.out,
+          subset5.out,
+      	   subset6.out,
+	         subset7.out,
+	         subset8.out};
+
+  }
+}
