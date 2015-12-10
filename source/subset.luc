@@ -1,7 +1,13 @@
+/**************************************************************************************************
+
+   Given a 64 bits number, this module extracts 8 bits starting from where index is pointing.
+       
+**************************************************************************************************/
+   
 module subset (
-    input set[64],
-    input index[6],
-    output out[8]
+    input set[64], // the set that we want to extract from
+    input index[6], // index that points to the first bit we want to extract
+    output out[8] // the subset 
   ) {
 
   always {

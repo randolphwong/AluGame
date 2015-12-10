@@ -1,3 +1,10 @@
+/**************************************************************************************************
+
+   This module outputs a square wave using a counter. The output is high when the second left most
+   bit of the counter is 1. Otherwise, 0. A larger bit width would result is a larger period.
+   
+**************************************************************************************************/
+
 module blinker (
     input clk,  // clock
     input rst,  // reset

@@ -1,3 +1,12 @@
+/**************************************************************************************************
+
+   A count down timer. Using a counter, a clock tick happens when the counter counts to 50 million.
+   This should be approximately 1 seconds, since the frequency of the clock is 50Mhz.
+   
+   Using a seperate counter called timer, we take the clock tick as the clk input.
+   
+**************************************************************************************************/
+
 module timer (
     input clk,  // clock
     input rst,  // reset

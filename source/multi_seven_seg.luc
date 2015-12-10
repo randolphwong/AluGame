@@ -1,3 +1,9 @@
+/**************************************************************************************************
+
+   This module takes in 2 BCD and outputs the respective 7-seg bits.
+       
+**************************************************************************************************/
+   
 module multi_seven_seg (
     input values [2][4],  // values to show
     output seg0 [7],           // LED segments

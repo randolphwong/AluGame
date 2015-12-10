@@ -1,3 +1,9 @@
+/**************************************************************************************************
+
+   A ROM that provides the map, position and time limit for a given level.
+   
+**************************************************************************************************/
+
 module level_ROM (
     input level[4],       // game level
     output map[64],       // map

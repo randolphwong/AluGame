@@ -1,37 +1,43 @@
+/**************************************************************************************************
+
+   This module takes a 6 bit number and outputs to 2 BCD.
+   
+**************************************************************************************************/
+
 module bin_to_bcd (
-    input a[6],  
-    output out1[4],  
-    output out0[4]
+    input a[6],   // input binary number
+    output out1[4],  // BCD1
+    output out0[4]   // BCD0
   ) {
 
   always {
-    if (a<=9){
+    if (a<=9){ // if number is less than 10, then BCD1 = 0
       out1=4b0;
-      out0=a[3:0];
+      out0=a[3:0]; // BCD0 is just the number
     }
-    else if (a>9 && a<=19) {
+    else if (a>9 && a<=19) { // if number is less than 20, then BCD1 = 1
       out1=4b1;
-      out0=a-10;
+      out0=a-10; // BCD0 is the first digit
     }
-    else if (a>19 && a<=29) {
+    else if (a>19 && a<=29) { // if number is less than 30, then BCD1 = 2
       out1=4b10;
-      out0=a-20;
+      out0=a-20; // BCD0 is the first digit
     }
-    else if (a>29 && a<=39) {
+    else if (a>29 && a<=39) { // if number is less than 40, then BCD1 = 3
       out1=4b11;
-      out0=a-30;
+      out0=a-30; // BCD0 is the first digit
     }
-    else if (a>39 && a<=49) {
+    else if (a>39 && a<=49) { // if number is less than 50, then BCD1 = 4
       out1=4b100;
-      out0=a-40;
+      out0=a-40; // BCD0 is the first digit
     }
-    else if (a>49 && a<=59) {
+    else if (a>49 && a<=59) { // if number is less than 60, then BCD1 = 5
       out1=4b101;
-      out0=a-50;
+      out0=a-50; // BCD0 is the first digit
     }
-    else if (a>59) {
+    else if (a>59) { // if number is greater than 59, then BCD1 = 6
       out1=4b110;
-      out0=a-60;
+      out0=a-60; // BCD0 is the first digit
     }
     else{
       out1=0;

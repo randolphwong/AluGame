@@ -1,15 +1,3 @@
-/**************************************************************************************************
-
-   TODO: 
-   1. Fix bug where a reset at game level 4 may cause a glitch. (current position starts at a 
-      wrong place and also a wrong time limit.) - could it be that the position and time was taken 
-      from the previous level? (Bug cannot be reproduced anymore...)
-   2. Update comment for up and down boundary.
-   3. Change the behaviour when player loses a level.
-       
-     
-**************************************************************************************************/
-
 module mojo_top (
     input clk,              // 50MHz clock
     input rst_n,            // reset button (active low)
@@ -103,8 +91,7 @@ module mojo_top (
       // current position to let the player know where they are at the moment.
       blinker blinky;
       
-      slow_clk s_clk(#DIV(23));
-      slow_clk f_clk;
+      slow_clk s_clk(#DIV(21));
       
       array_to_matrix matrix;
       
@@ -243,7 +230,7 @@ module mojo_top (
         my_alu.in_b = 1;
         my_alu.alufn = Alufn.SRA;
 
-        if (f_clk.out)
+        if (s_clk.out)
           current_position.d = my_alu.out;
 
         if ((timey.out == 60) && (current_position.q == 64hffffffffffffffff)) {
@@ -497,15 +484,11 @@ module mojo_top (
           game_fsm.d = game_fsm.COMPLETE;
         
       game_fsm.COMPLETE:
-      //game is completed and all the map leds light up and come alive for celebration!
-
+        //game is completed and all the map leds light up and come alive for celebration!
         led_matrix = my_scroller.out;
     }
 
-    // map led_matrix on io_led
-//    io_led[1] = c{led_matrix[3], led_matrix[2]};
-//    io_led[0] = c{led_matrix[1], led_matrix[0]};
-    
+    // Use the scroller module to get the respective row and col select
     matrix.values = led_matrix;
     io_led[1] = matrix.row_sel;
     io_led[0] = ~matrix.col_sel;
