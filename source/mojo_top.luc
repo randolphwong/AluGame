@@ -147,7 +147,7 @@ module mojo_top (
   
   bin_to_bcd my_bin_to_bcd;
   
-  multi_seven_seg my_seven_seg(#DIGITS(2), .clk(clk), .rst(rst));
+  multi_seven_seg my_seven_seg;
   dff counter[6](.clk(clk), .rst(rst));
     
   always {
@@ -164,6 +164,8 @@ module mojo_top (
     io_sel = 4hf;           // select no digits
 
     led_matrix = 8x{{8b0}};
+    
+    io_led[2] = 8hff;
     
     button_up_cond.in = io_button[0];      // synchronise up button press
     up_edge.in = button_up_cond.out;       // get edge detection from sychonised button press
@@ -314,9 +316,10 @@ module mojo_top (
         // Display the count down timer on the 7 segment display
         my_bin_to_bcd.a = timey.out - (60 - current_timelimit.q);
         my_seven_seg.values = {my_bin_to_bcd.out1, my_bin_to_bcd.out0};
-        io_seg = ~my_seven_seg.seg;
-        io_sel = ~my_seven_seg.sel;
-
+        io_seg = ~my_seven_seg.seg0;
+        io_led[2] = ~my_seven_seg.seg1;
+        io_sel = 4b1110; // select last segment
+        
         // Check whether the time is up
         if (timey.out == (60 - current_timelimit.q)) { // time's up!
           game_fsm.d = game_fsm.CHECK_GAMEOVER;
@@ -476,7 +479,7 @@ module mojo_top (
       game_fsm.GAMEOVER:
         // Player lost the level. Waits for user to press the center button 
         // to restart level.
-        io_led[2][6] = 1;   // second right most LED lights up to signify game over
+//        io_led[2][6] = 1;   // second right most LED lights up to signify game over
         if (io_button[1])  { //if center button is pressed
             game_fsm.d = game_fsm.INITIALISE_LEVEL;
         }
@@ -503,7 +506,7 @@ module mojo_top (
         
       game_fsm.COMPLETE:
       //game is completed and all the map leds light up and come alive for celebration!
-        io_led[2][7] = 1; // Right most LED lights up to signify a win in current level
+//        io_led[2][7] = 1; // Right most LED lights up to signify a win in current level
         
         subset1.set = victory_screen1;
         subset1.index = counter.q;
